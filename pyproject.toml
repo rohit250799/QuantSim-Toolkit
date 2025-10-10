@@ -2,7 +2,7 @@
 name = "quantsim-toolkit"
 version = "0.1.0"
 description = "A Python CLI-based quantitative simulation and analysis toolkit integrating probability simulations, stock return analysis, portfolio risk calculations, and Monte Carlo methods."
-authors = ["Rohit Sarkar]
+authors = ["Rohit Sarkar"]
 readme = "README.md"
 requires-python = ">=3.12"
 
