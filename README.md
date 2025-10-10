@@ -6,7 +6,7 @@
 
 ## Overview
 
-QuantSim-Toolkit consolidates multiple beginner-level quantitative and programming concepts into a single, **modular CLI project**. It bridges math, Python, 
+QuantSim-Toolkit consolidates multiple quantitative and programming concepts into a single, **modular CLI project**. It bridges math, Python, 
 and finance by allowing users to:
 
 - Simulate probabilities and random events
