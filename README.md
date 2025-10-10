@@ -1,8 +1,4 @@
 # QuantSim-Toolkit
-A Python-based quantitative simulation and analysis toolkit that integrates probability simulations, stock return analysis, portfolio risk calculations, and 
-Monte Carlo methods. It's used to demonstrate applied mathematics, numerical simulations, and CLI-based financial utilities for Quant devs.
-
-# QuantSim-Toolkit
 
 **A Python-based quantitative simulation and analysis toolkit that integrates probability simulations, stock return analysis, portfolio risk calculations, and Monte Carlo methods. Designed for aspiring Quant Developers to demonstrate applied mathematics, numerical simulations, and CLI-based financial utilities.**
 
@@ -18,7 +14,7 @@ and finance by allowing users to:
 - Perform Monte Carlo simulations for stock price paths
 - Interact with a unified CLI interface
 
-This project is a **foundation capstone** for anyone aiming to become a Quant Developer, emphasizing **code structure, applied math, and system-level thinking**.
+This project focuses on **Quant Development**, emphasizing **code structure, applied math, and system-level thinking**.
 
 ---
 
