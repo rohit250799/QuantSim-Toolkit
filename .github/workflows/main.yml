@@ -1,5 +1,50 @@
 name: QuantSim-Toolkit CI
 
+# on:
+#   push:
+#     branches: [ "master" ]
+#   pull_request:
+#     branches: [ "master" ]
+
+# jobs:
+#   build:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout repository
+#         uses: actions/checkout@v4
+
+#       - name: Set up Python
+#         uses: actions/setup-python@v5
+#         with:
+#           python-version: "3.12.3"
+
+#       - name: Install uv
+#         run: |
+#           python -m pip install --upgrade pip
+#           pip install uv
+
+#       - name: Cache uv dependencies
+#         uses: actions/cache@v4
+#         with:
+#           path: |
+#             ~/.cache/uv
+#           key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
+#           restore-keys: |
+#             ${{ runner.os }}-uv-
+
+#       - name: Install project dependencies
+#         run: |
+#           uv install
+
+#       - name: Run linting and formatting checks
+#         run: |
+#           uv run flake8 .
+#           uv run black --check .
+
+#       - name: Run tests
+#         run: |
+#           uv run pytest -v
+
 on:
   push:
     branches: [ "master" ]
@@ -7,40 +52,75 @@ on:
     branches: [ "master" ]
 
 jobs:
-  build:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12.3"]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v1
+      with:
+        version: "latest"
+
+    - name: Set up Python ${{ matrix.python-version }}
+      run: uv python install ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        uv sync --all-extras --dev
+
+    - name: Run static type checking
+      run: |
+        uv run mypy src/ tests/ --config-file pyproject.toml
+
+    - name: Run linting
+      run: |
+        uv run ruff check src/ tests/ --config pyproject.toml
+
+    - name: Run tests
+      run: |
+        uv run pytest tests/ -v --cov=src --cov-report=xml
+        
+  security-scan:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12.3"
+    - name: Install uv
+      uses: astral-sh/setup-uv@v1
 
-      - name: Install uv
-        run: |
-          python -m pip install --upgrade pip
-          pip install uv
+    - name: Install dependencies
+      run: uv sync --dev
 
-      - name: Cache uv dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/uv
-          key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-uv-
+    - name: Run security audit
+      run: |
+        uvx pip-audit
 
-      - name: Install project dependencies
-        run: |
-          uv install
+  build-docs:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      - name: Run linting and formatting checks
-        run: |
-          uv run flake8 .
-          uv run black --check .
+    - name: Install uv
+      uses: astral-sh/setup-uv@v1
 
-      - name: Run tests
-        run: |
-          uv run pytest -v
+    - name: Install dependencies
+      run: uv sync --all-extras --dev
+
+    - name: Build documentation
+      run: |
+        uv run sphinx-build -b html docs/ docs/_build/
+
+    - name: Upload documentation
+      uses: actions/upload-artifact@v3
+      with:
+        name: documentation
+        path: docs/_build/
+        retention-days: 7
