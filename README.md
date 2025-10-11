@@ -59,3 +59,12 @@ environment by running the following commands in order:
 you can use the 'uv sync' command
 3. Activate the virtual environment and start working using command: source .venv/bin/activate (.venv can also be .env or env)
 
+---
+
+Trying out the commands(all commands should be entered in the terminal from the src directory):
+
+1. Enter the command: **python3 main.py simulation -tries 100** to test the probability of each side of the dice after 100 rolls. Replace 100 with any other integer number to change the number of rolls 
+
+2. Enter command: **python3 main.py simulation -type coin -tries 100** to test the probability of each side of the coin after 100 tosses. Replace 100 with any other integer number to change the number of tosses 
+
+![Single coin or dice after n tries](screenshots/single_coin_or_dice.png)
