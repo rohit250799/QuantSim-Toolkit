@@ -2,7 +2,7 @@ import argparse
 import sys
 import logging
 
-from modules.probability import simulate_probability_of_single_dice, display_distribution_table
+from modules.probability import simulate_probability_of_single_dice, display_distribution_table, display_multiple_dice_simulation_parameters
 
 logging.basicConfig(level=logging.DEBUG, format=' %(asctime)s -  %(levelname)s -  %(message)s')
 
@@ -16,8 +16,13 @@ parser_simulation = subparsers.add_parser('simulation', help='Probability simula
 parser_simulation.add_argument('-type', '--objectType', help='Type of object to use for simulation', dest='objectType', choices=[
     'dice', 'coin', 'custom'
 ], default='dice')
-parser_simulation.add_argument('-acceptable', '--acceptableOutcome', default=1, type=int, dest='acceptableOutcome')
-parser_simulation.add_argument('-total', '--totalOutcome', default=6, type=int, dest='totalOutcome')
+
+
+parser_simulation.add_argument('-multi', '--multipleDice', help='Specifies if multiple dice are used for the simulation', action='store_true', dest='multiDice')
+
+parser_simulation.add_argument('-dice', '--dicenumber', default=2, type=int, dest='diceNumber', help='number of dice to be used in the sim')
+parser_simulation.add_argument('-sides', '--diceTotalSides', default=6, type=int, dest='diceTotalSides', help='Total sides of each dice')
+
 parser_simulation.add_argument('-tries', '-totalTries', default=10, type=int, dest='totalTries')
 
 parser_analyser = subparsers.add_parser('analyser', help='Reads historical stock price CSV and ' \
@@ -32,24 +37,30 @@ if args.myCommand == 'simulation':
         print('The object type is custom')
         sys.exit(0)
     else:
-        if args.objectType == 'coin':
-            try:
-                simulate_probability_of_single_dice(args.totalTries, object_type=args.objectType)
-            except ValueError as e: 
-                print(f'There has been a value error: {e}')
+        if not args.multiDice:
+            if args.objectType == 'coin':
+                try:
+                    simulate_probability_of_single_dice(args.totalTries, object_type=args.objectType)
+                except ValueError as e: 
+                    print(f'There has been a value error: {e}')
+                else:
+                    print(f'After {args.totalTries} tries for coin toss, the results are: \n')
+                    result = simulate_probability_of_single_dice(args.totalTries, object_type=args.objectType)
+                    display_distribution_table(result)
             else:
-                print(f'After {args.totalTries} tries for coin toss, the results are: \n')
-                result = simulate_probability_of_single_dice(args.totalTries, object_type=args.objectType)
-                display_distribution_table(result)
+                try:
+                    simulate_probability_of_single_dice(args.totalTries, object_type=args.objectType)
+                except ValueError as e: 
+                    print(f'There has been a value error: {e}')
+                else:
+                    print(f'After {args.totalTries} tries of dice roll, the results are: \n')
+                    result = simulate_probability_of_single_dice(args.totalTries, object_type=args.objectType)
+                    display_distribution_table(result)
         else:
-            try:
-                simulate_probability_of_single_dice(args.totalTries, object_type=args.objectType)
-            except ValueError as e: 
-                print(f'There has been a value error: {e}')
-            else:
-                print(f'After {args.totalTries} tries of dice roll, the results are: \n')
-                result = simulate_probability_of_single_dice(args.totalTries, object_type=args.objectType)
-                display_distribution_table(result)
+            result: dict = display_multiple_dice_simulation_parameters(args.diceNumber, args.diceTotalSides, args.totalTries)
+            display_distribution_table(result)
+            sys.exit(0)
+
     sys.exit(0)
 
 if args.myCommand == 'analyser':
