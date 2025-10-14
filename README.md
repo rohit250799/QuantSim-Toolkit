@@ -68,3 +68,7 @@ Trying out the commands(all commands should be entered in the terminal from the 
 2. Enter command: **python3 main.py simulation -type coin -tries 100** to test the probability of each side of the coin after 100 tosses. Replace 100 with any other integer number to change the number of tosses 
 
 ![Single coin or dice after n tries](screenshots/single_coin_or_dice.png)
+
+3. To try simulation with multiple dice (< 10), you can use this command: python3 main.py simulation -multi -dice 3 -sides 6 -tries 10 . You can change the number of dice, sides and tries
+
+![Multiple dice after simulation](screenshots/multi_dice_simulation.png)
