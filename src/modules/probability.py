@@ -64,9 +64,14 @@ def simulate_probability_of_single_dice(total_tries: int, object_type: str = 'di
     return frequency_storage_dict
 
 def display_distribution_table(frequency_storage_dict: dict) -> None:
+    """
+    Displays the distribution table with different table on the terminal
+    """
+
     for key, (frequency, probability) in frequency_storage_dict.items():
         print(f'Number / sum: {key}, Frequency: {frequency}, Probability: {probability}')
-
+    expected_value = calculate_expected_value(frequency_storage_dict)
+    print(f'\n The expected value is: {expected_value}')
     return
 
 def simulate_probability_of_multiple_dice(dice_number: int, side):
@@ -131,4 +136,18 @@ def display_multiple_dice_simulation_parameters(dice_number: int = 2, sides_per_
 
     return frequency_storage_dict
 
+def calculate_expected_value(frequency_storage_dict: dict) -> float:
+    """
+    Returns the expected value from the distribution table 
+    """
 
+    if not frequency_storage_dict: 
+        raise ValueError('Distribution table data not available!')
+
+    current_sum: float = 0.0
+    for key, (_, probability) in frequency_storage_dict.items():
+        product_value = key * probability
+        current_sum += product_value
+
+    return current_sum
+        
