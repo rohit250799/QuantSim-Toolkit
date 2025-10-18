@@ -1,5 +1,6 @@
 import logging
 import random
+import math
 
 logging.basicConfig(filename='my_log_file.txt', level=logging.DEBUG, 
                     format=' %(asctime)s -  %(levelname)s -  %(message)s')
@@ -64,13 +65,17 @@ def simulate_probability_of_single_dice(total_tries: int, object_type: str = 'di
     return frequency_storage_dict
 
 def display_distribution_table(frequency_storage_dict: dict) -> None:
+    """
+    Displays the distribution table with different table on the terminal
+    """
+    print('\n Distribution table:  \n')
     for key, (frequency, probability) in frequency_storage_dict.items():
         print(f'Number / sum: {key}, Frequency: {frequency}, Probability: {probability}')
-
+    expected_value = calculate_expected_value(frequency_storage_dict)
+    print(f'\n The expected value is: {expected_value}')
+    print(f'\n The variance is: {calculate_variance_of_data(frequency_storage_dict)}')
+    print(f'\n The standard deviation from the distribution table is: {math.sqrt(calculate_variance_of_data(frequency_storage_dict))}')
     return
-
-def simulate_probability_of_multiple_dice(dice_number: int, side):
-    pass
 
 def display_multiple_dice_simulation_parameters(dice_number: int = 2, sides_per_dice: int = 6, total_rolls: int = 1000):
 
@@ -107,7 +112,7 @@ def display_multiple_dice_simulation_parameters(dice_number: int = 2, sides_per_
     
     total_sum_possible: range = range(dice_number, dice_number * sides_per_dice + 1)
 
-    logging.debug('%d', dice_number * sides_per_dice)
+    #logging.debug('%d', dice_number * sides_per_dice)
 
     frequency_storage_dict: dict = {}
 
@@ -131,4 +136,43 @@ def display_multiple_dice_simulation_parameters(dice_number: int = 2, sides_per_
 
     return frequency_storage_dict
 
+def calculate_expected_value(frequency_storage_dict: dict) -> float:
+    """
+    Returns the expected value from the distribution table 
+    """
 
+    if not frequency_storage_dict: 
+        raise ValueError('Distribution table data not available!')
+
+    current_sum: float = 0.0
+    for key, (_, probability) in frequency_storage_dict.items():
+        product_value = key * probability
+        current_sum += product_value
+
+    return current_sum
+        
+def calculate_variance_of_data(frequency_storage_dict: dict):
+    """
+    Returns the variance of data points in the given dataset
+    """
+
+    total_data_points: int = len(frequency_storage_dict)
+    data_points: list = list(frequency_storage_dict.keys())
+    probability_values: list = list(frequency_storage_dict.values())
+    data_point_difference_from_mean: list = [0] * len(data_points)
+
+    data_points_sum = 0
+
+    for data in data_points:
+        data_points_sum += data
+
+    mean_of_data_points: float = data_points_sum / total_data_points
+    #print(f'The data_points in the distribution table are: {data_points}')
+
+    for index, data in enumerate(data_points):
+        data_point_difference_from_mean[index] = ((data - mean_of_data_points) ** 2) * probability_values[index][1]
+
+    #print(data_point_difference_from_mean)
+    variance: float = sum(data_point_difference_from_mean)
+
+    return variance
