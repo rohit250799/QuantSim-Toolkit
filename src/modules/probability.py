@@ -64,17 +64,18 @@ def simulate_probability_of_single_dice(total_tries: int, object_type: str = 'di
 
     return frequency_storage_dict
 
-def display_distribution_table(frequency_storage_dict: dict) -> None:
+def display_distribution_table(frequency_storage_dict: dict, multi_dice: bool = False) -> None:
     """
     Displays the distribution table with different table on the terminal
     """
     print('\n Distribution table:  \n')
     for key, (frequency, probability) in frequency_storage_dict.items():
         print(f'Number / sum: {key}, Frequency: {frequency}, Probability: {probability}')
-    expected_value = calculate_expected_value(frequency_storage_dict)
-    print(f'\n The expected value is: {expected_value}')
-    print(f'\n The variance is: {calculate_variance_of_data(frequency_storage_dict)}')
-    print(f'\n The standard deviation from the distribution table is: {math.sqrt(calculate_variance_of_data(frequency_storage_dict))}')
+    if multi_dice:
+        expected_value = calculate_expected_value_in_multi_dice_roll(frequency_storage_dict)
+        print(f'\n The expected value is: {expected_value}')
+        print(f'\n The variance is: {calculate_variance_of_data(frequency_storage_dict)}')
+        print(f'\n The standard deviation from the distribution table is: {math.sqrt(calculate_variance_of_data(frequency_storage_dict))}')
     return
 
 def display_multiple_dice_simulation_parameters(dice_number: int = 2, sides_per_dice: int = 6, total_rolls: int = 1000):
@@ -112,8 +113,6 @@ def display_multiple_dice_simulation_parameters(dice_number: int = 2, sides_per_
     
     total_sum_possible: range = range(dice_number, dice_number * sides_per_dice + 1)
 
-    #logging.debug('%d', dice_number * sides_per_dice)
-
     frequency_storage_dict: dict = {}
 
     dice_roll_results: list = []
@@ -136,7 +135,7 @@ def display_multiple_dice_simulation_parameters(dice_number: int = 2, sides_per_
 
     return frequency_storage_dict
 
-def calculate_expected_value(frequency_storage_dict: dict) -> float:
+def calculate_expected_value_in_multi_dice_roll(frequency_storage_dict: dict) -> float:
     """
     Returns the expected value from the distribution table 
     """
