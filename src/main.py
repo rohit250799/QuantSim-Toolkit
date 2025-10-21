@@ -3,6 +3,7 @@ import sys
 import logging
 
 from modules.probability import simulate_probability_of_single_dice, display_distribution_table, display_multiple_dice_simulation_parameters
+from modules.stock_returns_analyzer import FinancialDataDownloader
 
 logging.basicConfig(level=logging.DEBUG, format=' %(asctime)s -  %(levelname)s -  %(message)s')
 
@@ -23,10 +24,16 @@ parser_simulation.add_argument('-multi', '--multipleDice', help='Specifies if mu
 parser_simulation.add_argument('-dice', '--dicenumber', default=2, type=int, dest='diceNumber', help='number of dice to be used in the sim')
 parser_simulation.add_argument('-sides', '--diceTotalSides', default=6, type=int, dest='diceTotalSides', help='Total sides of each dice')
 
-parser_simulation.add_argument('-tries', '-totalTries', default=10, type=int, dest='totalTries')
+parser_simulation.add_argument('-tries', '-totalTries', default=10, type=int, dest='totalTries', help='The number of tries in the simulation')
 
-parser_analyser = subparsers.add_parser('analyser', help='Reads historical stock price CSV and ' \
+parser_downloader = subparsers.add_parser('download', help='Download required data in CSV format')
+parser_downloader.add_argument('-symbol', '--stockSymbol', help='symbol of the stock', dest='symbol')
+parser_downloader.add_argument('-exchange', '--stock_exchange', help='Stock exchange where the stock is traded', default='BSE', dest='exchange')
+
+parser_analyser = subparsers.add_parser('analyze', help='Reads historical stock price CSV and ' \
 'analyses their returns')
+parser_analyser.add_argument('-symbol', '--stockSymbol', help='symbol of the stock', dest='analyse_symbol')
+parser_analyser.add_argument('-exchange', '--stock_exchange', help='Stock exchange where the stock is traded', default='BSE', dest='analyse_exchange')
 parser_analyser.add_argument('-a', '--all', help='Display stock analysis data from ' \
 'the block for now', dest='testAnalyser')
 
@@ -58,13 +65,17 @@ if args.myCommand == 'simulation':
                     display_distribution_table(result)
         else:
             result: dict = display_multiple_dice_simulation_parameters(args.diceNumber, args.diceTotalSides, args.totalTries)
-            display_distribution_table(result)
+            display_distribution_table(result, args.multiDice)
             sys.exit(0)
 
+elif args.myCommand == 'download':
+    stock_query = FinancialDataDownloader()
+    result = stock_query.download_historical_stock_data(args.symbol, args.exchange)
+    print(result)
     sys.exit(0)
 
-if args.myCommand == 'analyser':
-    print('Successfully entered the analyser block')
+elif args.myCommand == 'analyze':
+    print('Successfully entered the analyze block')
     sys.exit(0)
 
 else:
