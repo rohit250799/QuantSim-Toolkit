@@ -63,12 +63,25 @@ you can use the 'uv sync' command
 
 Trying out the commands(all commands should be entered in the terminal from the src directory):
 
+Activate the virtual environment first by using **source .venv/bin/activate** from the root directory
+
 1. Enter the command: **python3 main.py simulation -tries 100** to test the probability of each side of the dice after 100 rolls. Replace 100 with any other integer number to change the number of rolls 
 
 2. Enter command: **python3 main.py simulation -type coin -tries 100** to test the probability of each side of the coin after 100 tosses. Replace 100 with any other integer number to change the number of tosses 
 
 ![Single coin or dice after n tries](screenshots/single_coin_or_dice.png)
 
-3. To try simulation with multiple dice (< 10), you can use this command: python3 main.py simulation -multi -dice 3 -sides 6 -tries 10 . You can change the number of dice, sides and tries
+3. To try simulation with multiple dice (< 10), you can use this command: **python3 main.py simulation -multi -dice 3 -sides 6 -tries 10**. You can change the number of dice, sides and tries
 
 ![Multiple dice after simulation](screenshots/multi_dice_simulation.png)
+
+4. To download data about a particular stock: you can use the command **python3 main.py download -symbol TCS -exchange BSE**. Symbol refers to the name of the stock and exchange means the particular stock exchange where it is being traded and you want your data from. 
+
+![Download stock data](screenshots/download_stock_data.png)
+
+In this case, there are some things that you need to know. 
+
+    a) Downloaded stock data will be in the CSV format
+    b) To download the stock data, I have used Alpha Vantage API for this project, from where you can download data for free(to a certain limit). To get started with this, every user needs to have a API key from Alpha Vantage (which is free). You can visit this link and generate your own API key by [clicking here](https://www.alphavantage.co/support/#api-key)
+    c)Once you get an API key, you have to store it in a .env file inside the modules/ directory. Store your API key there in the format: export API_KEY='A^5435NDD'
+    d)In the above point, maintaining the format is very important in the .env file and there should be no space on either side of '='
