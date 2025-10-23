@@ -76,6 +76,9 @@ elif args.myCommand == 'download':
 
 elif args.myCommand == 'analyze':
     print('Successfully entered the analyze block')
+    csv_filename: str = f'{args.analyse_symbol}_id.csv'
+    csv_path: str = './data'
+    financial_data_file = FinancialDataDownloader().load_as_dataframe(csv_path)
     sys.exit(0)
 
 else:
