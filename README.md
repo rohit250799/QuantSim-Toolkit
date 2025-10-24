@@ -50,6 +50,7 @@ This project focuses on **Quant Development**, emphasizing **code structure, app
 Assumptions made: 
 1. OS used - Debian (Ubuntu)
 2. Dependency management - uv (it needs to be installed in your local)
+3. Libraries used: Numpy, Pandas
 
 To start working on the project, fork the repo and clone it in your local. Once the cloning is complete, you can easily reproduce the 
 environment by running the following commands in order:
@@ -85,3 +86,9 @@ In this case, there are some things that you need to know.
     b) To download the stock data, I have used Alpha Vantage API for this project, from where you can download data for free(to a certain limit). To get started with this, every user needs to have a API key from Alpha Vantage (which is free). You can visit this link and generate your own API key by [clicking here](https://www.alphavantage.co/support/#api-key)
     c)Once you get an API key, you have to store it in a .env file inside the modules/ directory. Store your API key there in the format: export API_KEY='A^5435NDD'
     d)In the above point, maintaining the format is very important in the .env file and there should be no space on either side of '='
+
+5. Using generators with chunksize to read large downloaded CSV file data and calculating the daily stock returns on each chunk. For now, you can simply choose to run the **returns_analyzer file in analytics directory** to calculate and return the daily percentage returns to the terminal. Terminal commands to do the same will be added soon. 
+
+![Calculate daily returns](screenshots/calculate_daily_returns.png)
+
+
