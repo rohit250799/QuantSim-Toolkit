@@ -91,4 +91,8 @@ In this case, there are some things that you need to know.
 
 ![Calculate daily returns](screenshots/calculate_daily_returns.png)
 
+    Now, the key performance indicators of a particular stock are also displayed after the analysis. 
+
+![Display key performance indicators](screenshots/key_performance_indicators.png)
+
 
