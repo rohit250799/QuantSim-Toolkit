@@ -1,6 +1,6 @@
 # QuantSim-Toolkit
 
-**A Python-based quantitative simulation and analysis toolkit that integrates probability simulations, stock return analysis, portfolio risk calculations, and Monte Carlo methods. Designed for aspiring Quant Developers to demonstrate applied mathematics, numerical simulations, and CLI-based financial utilities.**
+**A Python-based quantitative simulation and analysis toolkit that integrates probability simulations, stock return analysis, portfolio risk calculations, and Monte Carlo methods. Designed to demonstrate applied mathematics, numerical simulations, and CLI-based financial utilities.**
 
 ---
 
@@ -94,5 +94,11 @@ In this case, there are some things that you need to know.
     Now, the key performance indicators of a particular stock are also displayed after the analysis. 
 
 ![Display key performance indicators](screenshots/key_performance_indicators.png)
+
+6. Now, the cumulative returns for the entire portfolio and for individual assets can be calculated for plotting it into line charts for easier understanding.
+Simply navigate to the **portfolio_analyzer.py** file and run it in the terminal. Enter number 2 as input and then the chart will be displayed on the screen and will be saved in the plots directory as well. 
+
+The chart will look like this:
+![Cumulative returns for entire portfolio vs individual assets](plots/cumulative_returns.png)
 
 
