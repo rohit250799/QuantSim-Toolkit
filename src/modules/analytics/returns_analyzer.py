@@ -1,9 +1,9 @@
 """
 This file is responsible for analysing the stock value and calculating the daily returns from it
 """
+import logging
 
 import pandas as pd
-import logging
 
 logging.basicConfig(filename='my_log_file.txt', level=logging.DEBUG, 
                     format=' %(asctime)s -  %(levelname)s -  %(message)s')
@@ -127,6 +127,27 @@ def calculate_daily_returns_from_hardcoded_list(stock_closing_price_for_testing_
     
     return stock_closing_price_for_testing_pandas_series.pct_change()
 
+def calculate_daily_portfolio_returns(df_test: pd.DataFrame) -> pd.Series:
+    """
+    Calculates the daily portfolio total from the input data frame's closing prices and returns their daily percentage change
+    
+    For simplicity, we'll assume that the user holds a single stock of each company. Variable quantities of particular stock and 
+    its calculation will be added later 
+
+    Args: 
+    df_test (pandas Dataframe) - storing the name of the stocks as columns and their closing values as row values
+
+    Returns:
+    Daily percentage change of the portfolio's total valuation across a time period
+    """
+    
+    df_returns = df_test.pct_change()
+
+    daily_average_returns = df_returns.mean(axis=1)
+
+    print(f'daily_average_returns is: {daily_average_returns}')
+    return daily_average_returns.pct_change()
+
 def summarize_returns(stock_closing_prices_series: pd.Series = read_all_csv_data(stock_symbol=stock_name)) -> dict:
     """
     Summarizes the returns of a particular stock and returns the key performance indicators to the user
@@ -155,7 +176,14 @@ def summarize_returns(stock_closing_prices_series: pd.Series = read_all_csv_data
 
 
 
-user_choice_for_testing = int(input('Enter 1 to test with CSV file values and 2 for testing with hardcoded price values: '))
+user_choice_for_testing = int(input('Enter 1 to test with CSV file values and 2 for testing with hardcoded price values and 3 for testing portfolio sum daily: '))
+
+df_test = pd.DataFrame({
+    'TCS': [100.0, 102.0, 101.0, 105.0, 104.0],
+    'INFY': [200.0, 198.0, 202.0, 205.0, 208.0],
+    'RELIANCE': [150.0, 152.0, 149.0, 155.0, 158.0]
+}, index=pd.date_range(start='2024-01-01', periods=5, freq='D'))
+
 
 if user_choice_for_testing == 1:
     stock_name = input('Enter the stock name: ')
@@ -169,14 +197,16 @@ elif user_choice_for_testing == 2:
     stock_closing_price_for_testing_pandas_series: pd.Series = pd.Series(stock_closing_price_for_testing)
     result = calculate_daily_returns_from_hardcoded_list(stock_closing_price_for_testing_pandas_series)
     print(f'The result is: {result}')
-    print(summarize_returns(stock_closing_price_for_testing_pandas_series))
+    print(summarize_returns(stock_closing_prices_series=stock_closing_price_for_testing_pandas_series))
 
+elif user_choice_for_testing == 3:
+    result = calculate_daily_portfolio_returns(df_test)
+    print(result)
 
 
 else: 
     print('Invalid choice')
     raise KeyError('Choose between 1 and 2!')
-
 
 
 
