@@ -1,0 +1,16 @@
+api:
+  alpha_vantage:
+    base_url: "https://www.alphavantage.co/query"
+    rate_limit_per_minute: 5
+    timeout_seconds: 10
+    
+symbols:
+  - "TCS"
+  - "INFY" 
+  
+database:
+  path: "QuantSim-Toolkit/db/quantsim.db"
+  
+logging:
+  level: "DEBUG"
+  file: "logs/market_data.log"

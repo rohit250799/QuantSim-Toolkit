@@ -208,3 +208,6 @@ __marimo__/
 
 #my custom log files
 my_log_file.txt
+
+#sqlite3 database files
+db/*.db
