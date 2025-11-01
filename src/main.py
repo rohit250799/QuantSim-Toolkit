@@ -3,7 +3,7 @@ import sys
 import logging
 
 from modules.probability import simulate_probability_of_single_dice, display_distribution_table, display_multiple_dice_simulation_parameters
-from modules.stock_returns_analyzer import FinancialDataDownloader
+from modules.stock_data_downloader import FinancialDataDownloader
 
 logging.basicConfig(level=logging.DEBUG, format=' %(asctime)s -  %(levelname)s -  %(message)s')
 
