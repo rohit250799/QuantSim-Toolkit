@@ -1,14 +1,27 @@
-import logging
+
+
 from pathlib import Path
 import os
+import sys
+import logging
+
+# Making sure root is found dynamically no matter where you run from
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from setup_root import setup_root
+setup_root()
+
 import requests
 import pandas as pd
-import asyncio
 import time
 
 from dotenv import load_dotenv
+from db.database import execute_query, list_tables, insert_bulk_data, DB_PATH
+from datetime import datetime
 
-logging.basicConfig(filename='QuantSim-Toolkit/logs/my_log_file.txt', level=logging.DEBUG, 
+logging.basicConfig(filename='QuantSim-Toolkit/logs/api_response_logs.txt', level=logging.DEBUG, 
                     format=' %(asctime)s -  %(levelname)s -  %(message)s')
 
 load_dotenv()
@@ -42,7 +55,7 @@ class FinancialDataDownloader:
         """
         Get the raw daily time series of the global equity, covering 20+ years of historical data
         """
-        url: str = f'{self.base_url}/query?function=TIME_SERIES_DAILY&symbol={symbol}.{market}&outputsize=compact&apikey={self.api_key}'
+        url: str = f'{self.base_url}/query?function=TIME_SERIES_DAILY&symbol={symbol}.{market}&outputsize=5&apikey={self.api_key}'
         headers = {'Authorization': f'Bearer {self.api_key}'}
 
         try:
@@ -70,8 +83,83 @@ class FinancialDataDownloader:
 
         except requests.exceptions.RequestException as e:
             print(f'Reques failed: {e}')
-            raise ConnectionError         
-    
+            raise 
+
+    def process_and_store(self, symbol: str, api_response: dict) -> dict:
+        """
+        Processing the obtained data, performing some validation checks and storing it in the database
+        
+        Args:
+        symbol(str) - A string storing the ticker of the stock
+        api_response(dict) - A dictionary containging the json value returned on successful call if fetch_data_daily function
+
+        Returns:
+
+        """
+
+        time_series_daily = api_response
+        try:
+            api_response_key = api_response.get('Time Series (Daily)')
+            #print(api_response_key)
+        except KeyError as e:
+            if 'Error Message' in api_response_key or 'Note' in api_response_key:
+                return {
+                    'status': 'error',
+                    'message': e
+                }
+        else:
+            logging.info('The symbol is: %s', symbol)
+            #query_symbols_table_for_symbol_id: str = f"select id from symbols where ticker = ?"
+            symbol_table_query_result = execute_query(DB_PATH, "select id from symbols where ticker = ?", (symbol, ))
+            if not symbol_table_query_result:
+                #if ticker data not present in the symbols table, inserting it first
+                insertion_query_result = execute_query(DB_PATH, "insert into symbols(ticker, company_name) values (?, ?)", (symbol, api_response['Meta Data']['2. Symbol']))
+                if insertion_query_result:
+                    symbol_id_from_symbols_table = execute_query(DB_PATH, "select id from symbols where ticker = ?", (symbol, ))
+                    print(f'The symbols id is: {symbol_id_from_symbols_table}')
+                else:
+                    print('Data could not be inserted properly. Try again')
+
+            else: 
+                symbol_id_from_symbols_table = execute_query(DB_PATH, "select id from symbols where ticker = ?", (symbol, ))[0]
+                print(f'The symbols id is: {symbol_id_from_symbols_table}')
+
+
+            record_processed_count = 0
+            #records_inserted_count = 0
+            skipped_rows_count = 0
+            records: list[tuple] = []
+
+            for date_key, value in api_response_key.items():
+                record_processed_count += 1
+                open_string, high_string, low_string, close_string, volume_string = value.values()
+                open, high, low, close, volume = float(open_string), float(high_string), float(low_string), float(close_string), float(volume_string)
+                timestamp = datetime.strptime(f'{date_key} 00:00:00', '%Y-%m-%d %H:%M:%S')
+                iso_timestamp = datetime.strptime(timestamp.isoformat(), "%Y-%m-%dT%H:%M:%S")
+                
+                try:
+                    if high >= low and high >= open and high >= close and low <= open and low <= close and volume >= 0 and iso_timestamp <= datetime.now():
+                        records.append((symbol_id_from_symbols_table, iso_timestamp.isoformat(), open, close, high, low, volume))
+                    else:
+                        logging.warning(f'Skipped malformed record for {iso_timestamp}: {e}')
+                        continue
+
+                except (TypeError, ValueError) as e:
+                    print(f'Skipping malformed data for timestamp: {iso_timestamp} - {e}')
+                    skipped_rows_count += 1
+
+            if not records: 
+                print('No valid records to insert in db')
+                return
+            
+            new_data_insertion_query_result = insert_bulk_data(DB_PATH, records)
+            return {
+                    'status': 'Success',
+                    'records_processed': record_processed_count,
+                    'records_inserted': new_data_insertion_query_result,
+                    'errors': 0
+                }
+                        
     def load_as_dataframe(self, csv_path):
         """Load the downloaded CSV data as Pandas dataframe"""
         if not csv_path:
@@ -84,5 +172,12 @@ class FinancialDataDownloader:
 
 result_class = FinancialDataDownloader()
 
-data = result_class.fetch_daily_data(symbol='INFY', market='BSE')
-print(data)
+data = result_class.fetch_daily_data(symbol='TCS', market='BSE')
+storing_data_result = result_class.process_and_store('TCS', data)
+print(storing_data_result)
+
+
+# myResult = execute_query(DB_PATH, "select * from symbols where ticker = 'INFY'")
+# print(myResult)
+
+# print(f'The tables currently are: {list_tables(DB_PATH)}')

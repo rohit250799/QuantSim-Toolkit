@@ -84,8 +84,8 @@ In this case, there are some things that you need to know.
 
     a) Downloaded stock data will be in the CSV format
     b) To download the stock data, I have used Alpha Vantage API for this project, from where you can download data for free(to a certain limit). To get started with this, every user needs to have a API key from Alpha Vantage (which is free). You can visit this link and generate your own API key by [clicking here](https://www.alphavantage.co/support/#api-key)
-    c)Once you get an API key, you have to store it in a .env file inside the modules/ directory. Store your API key there in the format: export API_KEY='A^5435NDD'
-    d)In the above point, maintaining the format is very important in the .env file and there should be no space on either side of '='
+    c) Once you get an API key, you have to store it in a .env file inside the modules/ directory. Store your API key there in the format: export API_KEY='A^5435NDD'
+    d) In the above point, maintaining the format is very important in the .env file and there should be no space on either side of '='
 
 5. Using generators with chunksize to read large downloaded CSV file data and calculating the daily stock returns on each chunk. For now, you can simply choose to run the **returns_analyzer file in analytics directory** to calculate and return the daily percentage returns to the terminal. Terminal commands to do the same will be added soon. 
 
@@ -100,5 +100,15 @@ Simply navigate to the **portfolio_analyzer.py** file and run it in the terminal
 
 The chart will look like this:
 ![Cumulative returns for entire portfolio vs individual assets](plots/cumulative_returns.png)
+
+7. New stock data can be fetched and now, **instead of downloading their csv data - they can also be stored directly in the db**. All the **duplicate values and invalid data will be ignored while inserting** into the database, to maintain data sanity. To try it out, **just navigate to the src/modules directory and just run the stock_data_downloader.py** file and the results will be displayed in the terminal. 
+
+If this operation is successful, you will get a Success status along with the number of records processed, inserted into db and the total number of errors. If not successful, an
+error message will be displayed to the terminal. 
+
+![Successfully inserted records in db](screenshots/successful_insertion_into_db.png)
+
+To check the db contents now, you can query the price_data table and all necessary records will be displayed
+
 
 

@@ -18,3 +18,12 @@ dependencies = [
 dev = [
     "pytest>=8.4.2",
 ]
+
+# This is crucial for uv — tells it where your source code lives.
+#[tool.uv]
+#src = "QuantSim-Toolkit"
+
+# Optional but helpful for development
+#[tool.uv.scripts]
+#run-sim = "python -m src.main"
+#test-db = "python -m tests.test_db_local"

@@ -208,6 +208,8 @@ __marimo__/
 
 #my custom log files
 my_log_file.txt
+api_response_logs.txt
+logs/
 
 #sqlite3 database files
-db/*.db
+*.db
