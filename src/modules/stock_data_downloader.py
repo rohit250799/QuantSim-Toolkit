@@ -3,6 +3,7 @@
 from pathlib import Path
 import os
 import sys
+import logging
 
 # Making sure root is found dynamically no matter where you run from
 ROOT = Path(__file__).resolve().parents[2]
@@ -17,8 +18,11 @@ import pandas as pd
 import time
 
 from dotenv import load_dotenv
-from db.database import execute_query, list_tables, DB_PATH
+from db.database import execute_query, list_tables, insert_bulk_data, DB_PATH
 from datetime import datetime
+
+logging.basicConfig(filename='QuantSim-Toolkit/logs/api_response_logs.txt', level=logging.DEBUG, 
+                    format=' %(asctime)s -  %(levelname)s -  %(message)s')
 
 load_dotenv()
 
@@ -107,7 +111,7 @@ class FinancialDataDownloader:
             query_symbols_table_for_symbol_id: str = f"select id from symbols where ticker = '{symbol}';"
             symbol_table_query_result = execute_query(DB_PATH, query_symbols_table_for_symbol_id)
             if not symbol_table_query_result:
-                #ticker data not present in the symbols table
+                #if ticker data not present in the symbols table, inserting it first
                 insertion_query_in_symbols_table: str = f'insert into symbols(ticker, company_name) values ({symbol}, {api_response['Meta Data']['Symbol']})'
                 insertion_query_result = execute_query(DB_PATH, insertion_query_in_symbols_table)
                 if insertion_query_result:
@@ -122,7 +126,9 @@ class FinancialDataDownloader:
 
 
             record_processed_count = 0
-            records_inserted_count = 0
+            #records_inserted_count = 0
+            skipped_rows_count = 0
+            records: list[tuple] = []
 
             for date_key, value in api_response_key.items():
                 record_processed_count += 1
@@ -130,32 +136,27 @@ class FinancialDataDownloader:
                 open, high, low, close, volume = float(open_string), float(high_string), float(low_string), float(close_string), float(volume_string)
                 timestamp = datetime.strptime(f'{date_key} 00:00:00', '%Y-%m-%d %H:%M:%S')
                 iso_timestamp = datetime.strptime(timestamp.isoformat(), "%Y-%m-%dT%H:%M:%S")
-
-                if high >= low and high >= open and high >= close and low <= open and low <= close and volume >= 0 and iso_timestamp <= datetime.now():
-                    insert_data_into_price_data_table_query = "insert into price_data(symbols_id, timestamp, open, close, high, low, volume) values (?, ?, ?, ?, ?, ?, ?)"
-
-                    params = (
-                        symbol_id_from_symbols_table,
-                        iso_timestamp.isoformat(),
-                        open,
-                        close, 
-                        high,
-                        low,
-                        volume
-                    )
-
-                    new_data_insertion_query_result = execute_query(DB_PATH, insert_data_into_price_data_table_query, params)
-                    if new_data_insertion_query_result:
-                        records_inserted_count += 1
                 
-                else: 
-                    print('Validation check failed! Please check the data authenticity again.')
-                    raise ValueError('Incorrect data is produced')
-                
+                try:
+                    if high >= low and high >= open and high >= close and low <= open and low <= close and volume >= 0 and iso_timestamp <= datetime.now():
+                        records.append((symbol_id_from_symbols_table, iso_timestamp.isoformat(), open, close, high, low, volume))
+                    else:
+                        logging.warning(f'Skipped malformed record for {iso_timestamp}: {e}')
+                        continue
+
+                except (TypeError, ValueError) as e:
+                    print(f'Skipping malformed data for timestamp: {iso_timestamp} - {e}')
+                    skipped_rows_count += 1
+
+            if not records: 
+                print('No valid records to insert in db')
+                return
+            
+            new_data_insertion_query_result = insert_bulk_data(DB_PATH, records)
             return {
                     'status': 'Success',
                     'records_processed': record_processed_count,
-                    'records_inserted': records_inserted_count,
+                    'records_inserted': new_data_insertion_query_result,
                     'errors': 0
                 }
                     
@@ -175,15 +176,12 @@ class FinancialDataDownloader:
 
 result_class = FinancialDataDownloader()
 
-data = result_class.fetch_daily_data(symbol='INFY', market='BSE')
-# print(f'The type of data is: {type(data)}')
-# print(data)
-
-storing_data_result = result_class.process_and_store('INFY', data)
-print(storing_data_result)
+#data = result_class.fetch_daily_data(symbol='INFY', market='BSE')
+# storing_data_result = result_class.process_and_store('INFY', data)
+# print(storing_data_result)
 
 
-# myResult = execute_query(DB_PATH, "select * from symbols")
-# print(myResult)
+myResult = execute_query(DB_PATH, "select * from price_data")
+print(myResult)
 
 # print(f'The tables currently are: {list_tables(DB_PATH)}')
