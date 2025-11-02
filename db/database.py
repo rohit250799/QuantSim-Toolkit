@@ -1,5 +1,6 @@
 import os
 import sqlite3
+import logging
 from dotenv import load_dotenv
 from pathlib import Path
 #from config.config_manager import load_config
@@ -22,6 +23,8 @@ PROJECT_ROOT = setup_root()
 # Define absolute path to the database
 DB_PATH = Path(PROJECT_ROOT) / "db" / "quantsim.db"
 
+logging.basicConfig(filename='QuantSim-Toolkit/logs/api_response_logs.txt', level=logging.DEBUG, 
+                    format=' %(asctime)s -  %(levelname)s -  %(message)s')
 
 #load_config()
 
@@ -56,6 +59,38 @@ def execute_query(db_path: str, query: str, params: tuple = ()):
     conn.close()
     return results
 
+def insert_bulk_data(db_path: str, records: list[tuple]):
+    """
+    Insert multiple rows in the database with transaction safety. 
+    """
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    records_inserted = 0
+
+    try:
+        conn.execute("begin transaction;")
+        bulk_insert_query: str = """
+        insert or ignore into price_data (symbols_id, timestamp, open, close, high, low, volume) values
+        (?, ?, ?, ?, ?, ?, ?)
+        """
+
+        #bulk insert with executemany
+        cursor.executemany(bulk_insert_query, records)
+
+        conn.commit()
+        records_inserted = cursor.rowcount if cursor.rowcount != -1 else len(records)
+        #print(f'Inserted {records_inserted} new records with duplicates ignored')
+        logging.info(f'Successfully inserted {records_inserted} new records with duplicates ignored')
+
+    except Exception as e:
+        conn.rollback()
+        #print(f"Transaction rolled back due to error: {e}")
+        logging.error(f'Transaction rolled back due to error: {e}')
+
+    finally:
+        conn.close()
+    return records_inserted
+
 def create_table_and_insert_values():
     "Function to test db integration by creating table and inserting values"
     try:
@@ -67,7 +102,8 @@ def create_table_and_insert_values():
         result = execute_query(DB_PATH, query)
         print(result)    
 
-symbol_table_creation_query: str = "create table if not exists symbols (id integer primary key, ticker text unique not null, company_name text, created_at text default CURRENT_TIMESTAMP);"
+symbol_table_creation_query: str = "create table if not exists symbols (id integer primary key, ticker text unique not null, " \
+"company_name text, created_at text default CURRENT_TIMESTAMP);"
 
 price_data_table_creation_query: str = "create table if not exists price_data(id INTEGER PRIMARY KEY, " \
 "symbols_id INTEGER, timestamp TEXT NOT NULL, open REAL,close REAL, high REAL, low REAL, volume int, " \
