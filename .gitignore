@@ -210,4 +210,4 @@ __marimo__/
 my_log_file.txt
 
 #sqlite3 database files
-db/*.db
+*.db
