@@ -54,7 +54,7 @@ def execute_query(db_path: str, query: str, params: tuple = ()):
     cursor = conn.cursor()
     cursor.execute("PRAGMA foreign_keys = ON;")
     cursor.execute(query, params)
-    results = cursor.fetchall()
+    results = cursor.fetchone()
     conn.commit()
     conn.close()
     return results

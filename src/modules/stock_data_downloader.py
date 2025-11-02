@@ -108,20 +108,20 @@ class FinancialDataDownloader:
                     'message': e
                 }
         else:
-            query_symbols_table_for_symbol_id: str = f"select id from symbols where ticker = '{symbol}';"
-            symbol_table_query_result = execute_query(DB_PATH, query_symbols_table_for_symbol_id)
+            logging.info('The symbol is: %s', symbol)
+            #query_symbols_table_for_symbol_id: str = f"select id from symbols where ticker = ?"
+            symbol_table_query_result = execute_query(DB_PATH, "select id from symbols where ticker = ?", (symbol, ))
             if not symbol_table_query_result:
                 #if ticker data not present in the symbols table, inserting it first
-                insertion_query_in_symbols_table: str = f'insert into symbols(ticker, company_name) values ({symbol}, {api_response['Meta Data']['Symbol']})'
-                insertion_query_result = execute_query(DB_PATH, insertion_query_in_symbols_table)
+                insertion_query_result = execute_query(DB_PATH, "insert into symbols(ticker, company_name) values (?, ?)", (symbol, api_response['Meta Data']['2. Symbol']))
                 if insertion_query_result:
-                    symbol_id_from_symbols_table = execute_query(DB_PATH, query_symbols_table_for_symbol_id)
+                    symbol_id_from_symbols_table = execute_query(DB_PATH, "select id from symbols where ticker = ?", (symbol, ))
                     print(f'The symbols id is: {symbol_id_from_symbols_table}')
                 else:
                     print('Data could not be inserted properly. Try again')
 
             else: 
-                symbol_id_from_symbols_table = execute_query(DB_PATH, query_symbols_table_for_symbol_id)[0][0]
+                symbol_id_from_symbols_table = execute_query(DB_PATH, "select id from symbols where ticker = ?", (symbol, ))[0]
                 print(f'The symbols id is: {symbol_id_from_symbols_table}')
 
 
@@ -159,11 +159,7 @@ class FinancialDataDownloader:
                     'records_inserted': new_data_insertion_query_result,
                     'errors': 0
                 }
-                    
-
-
-
-    
+                        
     def load_as_dataframe(self, csv_path):
         """Load the downloaded CSV data as Pandas dataframe"""
         if not csv_path:
@@ -176,12 +172,12 @@ class FinancialDataDownloader:
 
 result_class = FinancialDataDownloader()
 
-#data = result_class.fetch_daily_data(symbol='INFY', market='BSE')
-# storing_data_result = result_class.process_and_store('INFY', data)
-# print(storing_data_result)
+data = result_class.fetch_daily_data(symbol='TCS', market='BSE')
+storing_data_result = result_class.process_and_store('TCS', data)
+print(storing_data_result)
 
 
-myResult = execute_query(DB_PATH, "select * from price_data")
-print(myResult)
+# myResult = execute_query(DB_PATH, "select * from symbols where ticker = 'INFY'")
+# print(myResult)
 
 # print(f'The tables currently are: {list_tables(DB_PATH)}')
