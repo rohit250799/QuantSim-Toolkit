@@ -94,13 +94,12 @@ class FinancialDataDownloader:
         api_response(dict) - A dictionary containging the json value returned on successful call if fetch_data_daily function
 
         Returns:
-
+        A dictionary containing the success message with operational stats about record insertion
         """
 
-        time_series_daily = api_response
+        #time_series_daily = api_response
         try:
             api_response_key = api_response.get('Time Series (Daily)')
-            #print(api_response_key)
         except KeyError as e:
             if 'Error Message' in api_response_key or 'Note' in api_response_key:
                 return {
@@ -109,7 +108,6 @@ class FinancialDataDownloader:
                 }
         else:
             logging.info('The symbol is: %s', symbol)
-            #query_symbols_table_for_symbol_id: str = f"select id from symbols where ticker = ?"
             symbol_table_query_result = execute_query(DB_PATH, "select id from symbols where ticker = ?", (symbol, ))
             if not symbol_table_query_result:
                 #if ticker data not present in the symbols table, inserting it first
@@ -126,7 +124,6 @@ class FinancialDataDownloader:
 
 
             record_processed_count = 0
-            #records_inserted_count = 0
             skipped_rows_count = 0
             records: list[tuple] = []
 
@@ -168,6 +165,7 @@ class FinancialDataDownloader:
             # pd.read_csv(csv_path)
             for chunk in pd.read_csv(file, chunksize=1000):
                 yield chunk
+
                 
 
 result_class = FinancialDataDownloader()
