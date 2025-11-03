@@ -5,7 +5,7 @@ import logging
 
 import pandas as pd
 
-logging.basicConfig(filename='my_log_file.txt', level=logging.DEBUG, 
+logging.basicConfig(filename='QuantSim-Toolkit/logs/my_log_file.txt', level=logging.DEBUG, 
                     format=' %(asctime)s -  %(levelname)s -  %(message)s')
 
 stock_name = input('Enter the stock name: ')
@@ -176,7 +176,8 @@ def summarize_returns(stock_closing_prices_series: pd.Series = read_all_csv_data
 
 
 
-user_choice_for_testing = int(input('Enter 1 to test with CSV file values and 2 for testing with hardcoded price values and 3 for testing portfolio sum daily: '))
+user_choice_for_testing = int(input('Enter 1 to test with CSV file values and 2 for testing with hardcoded ' \
+'price values and 3 for testing portfolio sum daily: '))
 
 df_test = pd.DataFrame({
     'TCS': [100.0, 102.0, 101.0, 105.0, 104.0],
