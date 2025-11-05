@@ -1,26 +1,12 @@
 import os
+import yaml
 from dotenv import load_dotenv
 from pathlib import Path
 
-class ConfigManager:
-    """
-    A central configuration manager for this project
-    """
+def load_config(path: str = 'settings.yaml') -> dict:
+    """Load config values from Yaml file"""
+    with open(path, 'r') as file:
+        return yaml.safe_load(file)
+    
 
-    def __init__(self):
-        env_path = Path(__file__).resolve().parent.parent
-        load_dotenv(dotenv_path=env_path)
-
-        #for environment type
-        self.APP_ENV = os.getenv('APP_ENV', 'development')
-
-        #for database settings
-
-
-        #for API keys
-        self.ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY')
-
-        #other app configurations
-
-
-        
+#usage test

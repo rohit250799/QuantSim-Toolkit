@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 from returns_analyzer import calculate_daily_portfolio_returns
 
-logging.basicConfig(filename='my_log_file.txt', level=logging.DEBUG, 
+logging.basicConfig(filename='QuantSim-Toolkit/logs/my_log_file.txt', level=logging.DEBUG, 
                     format=' %(asctime)s -  %(levelname)s -  %(message)s')
 
 def calculate_portfolio_returns(df_prices: pd.DataFrame) -> pd.Series: 
@@ -25,6 +25,13 @@ def calculate_portfolio_returns(df_prices: pd.DataFrame) -> pd.Series:
 def plot_cumulative_returns(df_prices: pd.DataFrame):
     """
     Used to plot the cumulative returns of the entire portfolio vs individual stocks in the portfolio over a period of time
+
+    Args: 
+    df_prices(Pandas dataframe) - Stores the data about daily closing prices of stocks as list and stock symbols as columns
+
+    Returns:
+    A line chart plotting the individual asset returns against the average portfolio returns over a period of time. The line chart is shown
+    in the terminal and also gets saved inside the plots/ directory as a png image for any future reference. 
     """
     dataframe_individual_asset_returns = df_prices.pct_change()
     portfolio_returns = calculate_portfolio_returns(df_prices=df_test)

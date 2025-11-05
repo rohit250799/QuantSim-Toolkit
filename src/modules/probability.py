@@ -2,7 +2,7 @@ import logging
 import random
 import math
 
-logging.basicConfig(filename='my_log_file.txt', level=logging.DEBUG, 
+logging.basicConfig(filename='QuantSim-Toolkit/logs/my_log_file.txt', level=logging.DEBUG, 
                     format=' %(asctime)s -  %(levelname)s -  %(message)s')
 
 def simulate_probability_of_single_dice(total_tries: int, object_type: str = 'dice') -> dict:
@@ -166,12 +166,10 @@ def calculate_variance_of_data(frequency_storage_dict: dict):
         data_points_sum += data
 
     mean_of_data_points: float = data_points_sum / total_data_points
-    #print(f'The data_points in the distribution table are: {data_points}')
 
     for index, data in enumerate(data_points):
         data_point_difference_from_mean[index] = ((data - mean_of_data_points) ** 2) * probability_values[index][1]
 
-    #print(data_point_difference_from_mean)
     variance: float = sum(data_point_difference_from_mean)
 
     return variance
