@@ -6,24 +6,9 @@ from pathlib import Path
 #from config.config_manager import load_config
 
 load_dotenv()
+DB_PATH = "db/quantsim.db"
 
-# Ensure root setup works even if imported directly
-try:
-    from setup_root import setup_root
-except ModuleNotFoundError:
-    import sys
-    ROOT = Path(__file__).resolve().parents[2]
-    if str(ROOT) not in sys.path:
-        sys.path.insert(0, str(ROOT))
-    from setup_root import setup_root
-
-# Set up root once for DB access
-PROJECT_ROOT = setup_root()
-
-# Define absolute path to the database
-DB_PATH = Path(PROJECT_ROOT) / "db" / "quantsim.db"
-
-logging.basicConfig(filename='QuantSim-Toolkit/logs/api_response_logs.txt', level=logging.DEBUG, 
+logging.basicConfig(filename='logs/api_response_logs.txt', level=logging.DEBUG, 
                     format=' %(asctime)s -  %(levelname)s -  %(message)s')
 
 #load_config()
