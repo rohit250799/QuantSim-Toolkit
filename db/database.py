@@ -8,7 +8,7 @@ from pathlib import Path
 load_dotenv()
 DB_PATH = "db/quantsim.db"
 
-logging.basicConfig(filename='logs/api_response_logs.txt', level=logging.DEBUG, 
+logging.basicConfig(filename='logs/db_logs.txt', level=logging.DEBUG, 
                     format=' %(asctime)s -  %(levelname)s -  %(message)s')
 
 #load_config()
@@ -97,12 +97,14 @@ price_data_table_creation_query: str = "create table if not exists price_data(id
 api_logs_table_creation_query: str = "create table if not exists api_logs(id int PRIMARY KEY, symbol TEXT, " \
 "endpoint TEXT, status_code int, response_time_ms int, timestamp TEXT DEFAULT CURRENT_TIMESTAMP);"
 
+circuit_breaker_states_table_creation_query: str = "create table if not exists circuit_breaker_states(id INTEGER PRIMARY KEY, " \
+"symbol_id INTEGER, failure_count INTEGER, last_fail_time TEXT, state INTEGER NOT NULL, cooldown_end_time TEXT DEFAULT NULL)"
+
 # price_data_table_res = execute_query(DB_PATH, price_data_table_creation_query)
 # api_logs_table_res = execute_query(DB_PATH, api_logs_table_creation_query)
 
-#drop_price_data_old_table: str = 'drop table if exists price_data'
-#print(execute_query(DB_PATH, drop_price_data_old_table))
+# print(execute_query(DB_PATH, circuit_breaker_states_table_creation_query))
 
-#print(list_tables(DB_PATH))
+# print(list_tables(DB_PATH))
 
 #print(execute_query(DB_PATH, 'select * from symbols;'))

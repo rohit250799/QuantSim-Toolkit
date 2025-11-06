@@ -1,30 +1,25 @@
-
-
 from pathlib import Path
 import os
-import sys
 import logging
 
-# Making sure root is found dynamically no matter where you run from
-ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-from setup_root import setup_root
-setup_root()
 
 import requests
 import pandas as pd
 import time
 
 from dotenv import load_dotenv
-from db.database import execute_query, list_tables, insert_bulk_data, DB_PATH
+from db.database import execute_query, insert_bulk_data, DB_PATH
 from datetime import datetime
 
-logging.basicConfig(filename='QuantSim-Toolkit/logs/api_response_logs.txt', level=logging.DEBUG, 
+logging.basicConfig(filename='logs/api_response_logs.txt', level=logging.DEBUG, 
                     format=' %(asctime)s -  %(levelname)s -  %(message)s')
 
 load_dotenv()
+
+class Circuit_State(Enum):
+    CLOSED = 0
+    OPEN = 1
+    HALF_OPEN = 2
 
 class FinancialDataDownloader:
     def __init__(self):
@@ -50,6 +45,24 @@ class FinancialDataDownloader:
 
         print(f'Stock data for symbol: {stock_symbol} saved in file: {filename}')
         return filename
+    
+    def _check_circuit_state(self, symbol: str) -> bool:
+        """
+        Checks the current state of the circuit breaker
+
+        Args:
+        symbol(str) - stock symbol for which we are checking the state
+
+        Returns:
+        A boolean value denoting the state of the circuit - if true is returned, API calls will be allowed for the stock. Else, 
+        API calls have been suspended for a time period and will resume later
+        """
+        get_symbol_id: tuple = execute_query(DB_PATH, "select id from symbols where ticker = ?", (symbol, ))
+        symbol_id: int = int(get_symbol_id[0]) if get_symbol_id else 0
+        get_current_symbol_state = execute_query(DB_PATH, "select state from circuit_breaker_states where symbol_id = ?", (symbol_id, ))
+        current_symbol_state: int = int(get_current_symbol_state[0]) 
+        logging.DEBUG(f'The current symbol state is: {current_symbol_state}')
+        return True if current_symbol_state == 0 or current_symbol_state == 2 else False
     
     def fetch_daily_data(self, symbol: str, market: str = 'BSE') -> dict:
         """
@@ -170,10 +183,10 @@ class FinancialDataDownloader:
 
 result_class = FinancialDataDownloader()
 
-data = result_class.fetch_daily_data(symbol='TCS', market='BSE')
-storing_data_result = result_class.process_and_store('TCS', data)
-print(storing_data_result)
-
+# data = result_class.fetch_daily_data(symbol='NMDC', market='BSE')
+# storing_data_result = result_class.process_and_store('NMDC', data)
+# print(storing_data_result)
+print(result_class._check_circuit_state('TCS'))
 
 # myResult = execute_query(DB_PATH, "select * from symbols where ticker = 'INFY'")
 # print(myResult)
