@@ -1,13 +1,14 @@
 from pathlib import Path
 import os
 import logging
-
+from src.custom_errors import RecordNotFoundError
+import time
 
 import requests
 import pandas as pd
-import time
 
 from dotenv import load_dotenv
+from enum import Enum
 from db.database import execute_query, insert_bulk_data, DB_PATH
 from datetime import datetime
 
@@ -56,12 +57,20 @@ class FinancialDataDownloader:
         Returns:
         A boolean value denoting the state of the circuit - if true is returned, API calls will be allowed for the stock. Else, 
         API calls have been suspended for a time period and will resume later
+
+        Raises:
+        RecordNotFoundError if the symbol does not exist in the database
         """
         get_symbol_id: tuple = execute_query(DB_PATH, "select id from symbols where ticker = ?", (symbol, ))
         symbol_id: int = int(get_symbol_id[0]) if get_symbol_id else 0
-        get_current_symbol_state = execute_query(DB_PATH, "select state from circuit_breaker_states where symbol_id = ?", (symbol_id, ))
-        current_symbol_state: int = int(get_current_symbol_state[0]) 
-        logging.DEBUG(f'The current symbol state is: {current_symbol_state}')
+        if symbol_id:
+            get_current_symbol_state = execute_query(DB_PATH, "select state from circuit_breaker_states where symbol_id = ?", (symbol_id, ))
+            logging.debug('The symbol state is: %s', get_current_symbol_state)
+            current_symbol_state: int = int(get_current_symbol_state[0]) if get_current_symbol_state else 0
+            logging.debug('The current symbol state is: %s', current_symbol_state)
+        else: 
+            raise RecordNotFoundError('The symbol id has not been found in the database. Check your symbol id again')
+        
         return True if current_symbol_state == 0 or current_symbol_state == 2 else False
     
     def fetch_daily_data(self, symbol: str, market: str = 'BSE') -> dict:
@@ -70,33 +79,70 @@ class FinancialDataDownloader:
         """
         url: str = f'{self.base_url}/query?function=TIME_SERIES_DAILY&symbol={symbol}.{market}&outputsize=5&apikey={self.api_key}'
         headers = {'Authorization': f'Bearer {self.api_key}'}
+        fetching_failure_counts: int = 0
+        if self._check_circuit_state:
+            try:
+                response: requests.Response = requests.get(url=url, headers=headers, timeout=10)
+                response_code = response.status_code
 
-        try:
-            response: requests.Response = requests.get(url=url, headers=headers, timeout=10)
-            response_code = response.status_code
+                if response_code == 200:
+                    if "Error Message" in response.text:
+                        logging.debug('The error is: %s', response.text)
+                        fetching_failure_counts += 1
+                        return {}
+                    print('Reqeust has been successful') 
+                    return response.json()
 
-            if response_code == 200:
-                print('Reqeust has been successful') 
-                return response.json()
+                elif response_code == 429:
+                    fetching_failure_counts += 1
+                    wait_time = 60
+                    print(f'429 Error: Too many requests. Retry after {wait_time} seconds...')
+                    time.sleep(wait_time)
+                    return self.fetch_daily_data(symbol, market)    
 
-            elif response_code == 429:
-                wait_time = 60
-                print(f'429 Error: Too many requests. Retry after {wait_time} seconds...')
-                time.sleep(wait_time)
-                return self.fetch_daily_data(symbol, market)    
+                elif response_code >= 500 and response_code < 600:
+                    fetching_failure_counts += 1
+                    wait_time = 30
+                    print(f'Server error {response_code}: Wait for 30 seconds before retrying')
+                    time.sleep(wait_time)
+                    return self.fetch_daily_data(symbol, market)
 
-            elif response_code >= 500 and response_code < 600:
-                wait_time = 30
-                print(f'Server error {response_code}: Wait for 30 seconds before retrying')
-                time.sleep(wait_time)
-                return self.fetch_daily_data(symbol, market)
+                else:
+                    fetching_failure_counts += 1 
+                    response.raise_for_status()
 
-            else: 
-                response.raise_for_status()
+            except requests.exceptions.RequestException as e:
+                fetching_failure_counts += 1
+                print(f'Reques failed: {e}')
+                raise
 
-        except requests.exceptions.RequestException as e:
-            print(f'Reques failed: {e}')
-            raise 
+            finally:
+                if fetching_failure_counts > 0:
+                    self._update_circuit_state(symbol=symbol)
+                    logging.debug('The circuit breaker is open now!')
+
+        else:
+            logging.debug('API calls not allowed as the circuit is open. Please try after some time')
+            return {}
+
+    def _update_circuit_state(self, symbol: str) -> None:
+        data = self.fetch_daily_data(symbol=symbol)
+        get_symbol_id: tuple = execute_query(DB_PATH, "select id from symbols where ticker = ?", (symbol, ))
+        symbol_id: int = int(get_symbol_id[0])
+        failure_count = 0
+        if data:
+            logging.debug('Successful fetching in closed circuit state')
+            return True
+        else:
+            failure_count += 1
+            logging.debug(f'Data fetched is: {data}')
+            logging.debug('Data fetching unsuccessful. Failure count incremented by 1. Current failure count is: %d', failure_count)
+
+            current_state_of_circuit_breaker = Circuit_State.OPEN
+            updating_circuit_breaker_table_query_result = execute_query(DB_PATH, "update circuit_breaker_states set failure_count = ?, state = ? where symbol_id = ?", (3, current_state_of_circuit_breaker, symbol_id))
+            logging.debug('The result is: %s', updating_circuit_breaker_table_query_result)
+
+        return False
 
     def process_and_store(self, symbol: str, api_response: dict) -> dict:
         """
@@ -186,7 +232,7 @@ result_class = FinancialDataDownloader()
 # data = result_class.fetch_daily_data(symbol='NMDC', market='BSE')
 # storing_data_result = result_class.process_and_store('NMDC', data)
 # print(storing_data_result)
-print(result_class._check_circuit_state('TCS'))
+print(result_class.fetch_daily_data('BITTU'))
 
 # myResult = execute_query(DB_PATH, "select * from symbols where ticker = 'INFY'")
 # print(myResult)
