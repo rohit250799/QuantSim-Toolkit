@@ -1,11 +1,14 @@
 from pathlib import Path
 import os
 import logging
-from src.custom_errors import RecordNotFoundError
 import time
-
+from datetime import datetime, timedelta
 import requests
 import pandas as pd
+
+from src.custom_errors import RecordNotFoundError
+
+
 
 from dotenv import load_dotenv
 from enum import Enum
@@ -71,7 +74,13 @@ class FinancialDataDownloader:
         else: 
             raise RecordNotFoundError('The symbol id has not been found in the database. Check your symbol id again')
         
-        return True if current_symbol_state == 0 or current_symbol_state == 2 else False
+        #return True if current_symbol_state == 0 or current_symbol_state == 2 else False
+        if current_symbol_state == 0:
+            return True, current_symbol_state
+        elif current_symbol_state == 1:
+            return False, current_symbol_state
+        else: 
+            return True, current_symbol_state
     
     def fetch_daily_data(self, symbol: str, market: str = 'BSE') -> dict:
         """
@@ -116,33 +125,64 @@ class FinancialDataDownloader:
                 print(f'Reques failed: {e}')
                 raise
 
-            finally:
-                if fetching_failure_counts > 0:
-                    self._update_circuit_state(symbol=symbol)
-                    logging.debug('The circuit breaker is open now!')
+            #finally:
+                #self._update_circuit_state(symbol=symbol)
 
         else:
             logging.debug('API calls not allowed as the circuit is open. Please try after some time')
             return {}
 
-    def _update_circuit_state(self, symbol: str) -> None:
-        data = self.fetch_daily_data(symbol=symbol)
+    def _update_circuit_state(self, symbol: str, success: bool) -> None:
+        """
+        Updates the circuit state and stores it in the db
+
+        Args:
+        symbol(str) - stock symbol(ticker) used to identify the stock
+        success(bool) - API call result (returns True if API call succeeded and False if it failed)
+
+        Returns:
+        None. It's just used to update the circuit state
+        """
         get_symbol_id: tuple = execute_query(DB_PATH, "select id from symbols where ticker = ?", (symbol, ))
-        symbol_id: int = int(get_symbol_id[0])
-        failure_count = 0
-        if data:
-            logging.debug('Successful fetching in closed circuit state')
-            return True
+        symbol_id: int = int(get_symbol_id[0]) if get_symbol_id else 0
+        if success:
+            if symbol_id:
+                get_current_symbol_state = execute_query(DB_PATH, "select state from circuit_breaker_states where symbol_id = ?", (symbol_id, ))
+                current_state: int = int(get_current_symbol_state[0])
+                if current_state == 2:
+                    logging.debug('Before the update: %s', execute_query(DB_PATH, "select * from circuit_breaker_states where symbol_id = ?", (symbol_id, )))
+                    update_db_record = execute_query(DB_PATH, "update circuit_breaker_states set failure_count = ?, last_fail_time = ?, state = ? where id = ?", (0, None, Circuit_State.CLOSED.value))
+                    logging.debug('In the success block, after updating db record result is: %s', execute_query(DB_PATH, "select * from circuit_breaker_states where symbol_id = ?", (symbol_id, )))
+                    return
+                else:
+                    logging.debug('Before the update: %s', execute_query(DB_PATH, "select * from circuit_breaker_states where symbol_id = ?", (symbol_id, )))
+                    update_db_record = execute_query(DB_PATH, "update circuit_breaker_states set failure_count = ?, last_fail_time = ? where id = ?", (0, None, symbol_id))
+                    logging.debug('In the success block, after updating db record result when previous state was closed is: %s', execute_query(DB_PATH, "select * from circuit_breaker_states where symbol_id = ?", (symbol_id, )))
+                    return
+            else: 
+                logging.debug('There is something wrong with the symbol id. The symbol id here is: %d', symbol_id)
+                raise RecordNotFoundError('Symbol id does not exists!')
         else:
-            failure_count += 1
-            logging.debug(f'Data fetched is: {data}')
-            logging.debug('Data fetching unsuccessful. Failure count incremented by 1. Current failure count is: %d', failure_count)
+            failure_count_result, last_failure_time_result = execute_query(DB_PATH, "select failure_count, last_fail_time from circuit_breaker_states where id = ?", (symbol_id, ))
+            time_difference_in_seconds = (last_failure_time_result - datetime.now().isoformat()).seconds
+            new_failure_count: int = 0
+            current_timestamp_in_iso_format = (datetime.now()).isoformat() 
 
-            current_state_of_circuit_breaker = Circuit_State.OPEN
-            updating_circuit_breaker_table_query_result = execute_query(DB_PATH, "update circuit_breaker_states set failure_count = ?, state = ? where symbol_id = ?", (3, current_state_of_circuit_breaker, symbol_id))
-            logging.debug('The result is: %s', updating_circuit_breaker_table_query_result)
+            if time_difference_in_seconds > 300 or not last_failure_time_result:
+                new_failure_count = 1
+            else:
+                new_failure_count = failure_count_result + 1
 
-        return False
+            if new_failure_count >= 3:
+                new_updated_state = Circuit_State.OPEN.value
+                new_cooldown_end_time = (datetime.now() + timedelta(hours=1)).isoformat()   
+                update_db_record_result = execute_query(DB_PATH, "update circuit_breaker_states set failure_count = ?, last_fail_time = ?, state = ?, cooldown_end_time = ? where id = ?", (new_failure_count, current_timestamp_in_iso_format, new_updated_state, new_cooldown_end_time, symbol_id))
+                logging.debug('The result of updating db circuit breaker state is: %s', update_db_record_result)
+
+            else:
+                updating_db_record = execute_query(DB_PATH, "update circuit_breaker_states set failure_count = ?, last_fail_time = ? where id = ?", (new_failure_count, current_timestamp_in_iso_format, symbol_id))
+                logging.debug('The new failure count < 3, so the query result is: %s', updating_db_record)
+
 
     def process_and_store(self, symbol: str, api_response: dict) -> dict:
         """
@@ -232,9 +272,11 @@ result_class = FinancialDataDownloader()
 # data = result_class.fetch_daily_data(symbol='NMDC', market='BSE')
 # storing_data_result = result_class.process_and_store('NMDC', data)
 # print(storing_data_result)
-print(result_class.fetch_daily_data('BITTU'))
+#print(execute_query(DB_PATH, "insert into circuit_breaker_states(symbol_id, failure_count, state) values(?, ?, ?)", (1, 0, Circuit_State.CLOSED.value)))
+print(execute_query(DB_PATH, "insert into circuit_breaker_states(symbol_id, failure_count, state) values(?, ?, ?)", (2, 0, Circuit_State.HALF_OPEN.value)))
+print(result_class._update_circuit_state('TCS', True))
 
-# myResult = execute_query(DB_PATH, "select * from symbols where ticker = 'INFY'")
+# myResult = execute_query(DB_PATH, "select * from symbols")
 # print(myResult)
 
 # print(f'The tables currently are: {list_tables(DB_PATH)}')
