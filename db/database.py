@@ -69,7 +69,6 @@ def insert_bulk_data(db_path: str, records: list[tuple]):
 
     except Exception as e:
         conn.rollback()
-        #print(f"Transaction rolled back due to error: {e}")
         logging.error(f'Transaction rolled back due to error: {e}')
 
     finally:
@@ -100,11 +99,13 @@ api_logs_table_creation_query: str = "create table if not exists api_logs(id int
 circuit_breaker_states_table_creation_query: str = "create table if not exists circuit_breaker_states(id INTEGER PRIMARY KEY, " \
 "symbol_id INTEGER, failure_count INTEGER, last_fail_time TEXT, state INTEGER NOT NULL, cooldown_end_time TEXT DEFAULT NULL)"
 
-# price_data_table_res = execute_query(DB_PATH, price_data_table_creation_query)
+error_metrics_table_creation_query: str = "create table if not exists error_metrics(id INTEGER PRIMARY KEY, timestamp TEXT, error_type INTEGER, error_message TEXT, resolution INTEGER)"
+
+alerts_table_creation_query: str = "create table if not exists alerts(id INTEGER PRIMARY KEY, timestamp TEXT, alert_type INTEGER, symbol TEXT, message TEXT, severity INTEGER, acknowledged INTEGER)"
+
+alerts_table_res = execute_query(DB_PATH, alerts_table_creation_query)
 # api_logs_table_res = execute_query(DB_PATH, api_logs_table_creation_query)
 
-# print(execute_query(DB_PATH, circuit_breaker_states_table_creation_query))
+#print(list_tables(DB_PATH))
 
-# print(list_tables(DB_PATH))
-
-#print(execute_query(DB_PATH, 'select * from symbols;'))
+#print(execute_query(DB_PATH, 'select * from error_metrics;'))
