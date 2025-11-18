@@ -89,10 +89,22 @@ class FinancialDataDownloader:
                 execute_query(DB_PATH, "insert into circuit_breaker_states(symbol_id, failure_count, last_fail_time, state, cooldown_end_time) values(?, ?, ?, ?, ?)", (symbol_id, init_failure_count, init_last_failure_time, init_state, init_cooldown_end_time))
                 logging.debug("After inserting record in table, the record is: %s", execute_query(DB_PATH, "select * from circuit_breaker_states where symbol_id = ?", (symbol_id, )))
             else:
-
                 current_symbol_state, cooldown_end_time = execute_query(DB_PATH, "select state, cooldown_end_time from circuit_breaker_states where symbol_id = ?", (symbol_id, ))
                 logging.debug('The symbol state is: %s and cooldown end time is: %s', current_symbol_state, cooldown_end_time)
-            
+
+            current_timestamp: datetime = datetime.now()
+            cooldown_end_time: str = execute_query(DB_PATH, "select cooldown_end_time from circuit_breaker_states where symbol_id = ?", (symbol_id, ))[0]
+            cooldown_end_time_datetime: datetime = datetime.fromisoformat(cooldown_end_time) if cooldown_end_time else datetime.min
+
+            if current_timestamp > cooldown_end_time_datetime:
+                updated_state = Circuit_State.HALF_OPEN.value
+                updated_failure_count = 0
+                updated_last_failure_time = None
+                updated_cooldonw_end_time = None
+                execute_query(DB_PATH, "update circuit_breaker_states set failure_count = ?, last_fail_time = ?, state = ?, cooldown_end_time = ? where symbol_id = ?", (updated_failure_count, updated_last_failure_time, updated_state, updated_cooldonw_end_time, symbol_id))
+                logging.debug("Since current time > cooldown_end time, updating record. New record = %s", execute_query(DB_PATH, "select * from circuit_breaker_states where symbol_id = ?", (symbol_id, )))
+
+                return True, updated_state
         else: 
             raise RecordNotFoundError('The symbol id has not been found in the database. Check your symbol id again')
         
@@ -332,9 +344,9 @@ result_class = FinancialDataDownloader()
 # print(storing_data_result)
 #print(execute_query(DB_PATH, "update circuit_breaker_states set state = ? where symbol_id = ?", (Circuit_State.OPEN.value, 2)))
 #print(execute_query(DB_PATH, "insert into circuit_breaker_states(symbol_id, failure_count, state) values(?, ?, ?)", (2, 0, Circuit_State.HALF_OPEN.value)))
-print(result_class.fetch_daily_data('ONGC'))
+print(result_class.fetch_daily_data('TCS'))
 
-#print(execute_query(DB_PATH, "select * from circuit_breaker_states where symbol_id = ?", (3, )))
+#print(execute_query(DB_PATH, "select * from circuit_breaker_states where symbol_id = ?", (2, )))
 
 # myResult = execute_query(DB_PATH, "select * from symbols where id = ?", (3, ))
 # print(myResult)
