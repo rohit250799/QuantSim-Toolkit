@@ -91,7 +91,13 @@ class FinancialDataDownloader:
             else:
                 current_symbol_state, cooldown_end_time = execute_query(DB_PATH, "select state, cooldown_end_time from circuit_breaker_states where symbol_id = ?", (symbol_id, ))
                 logging.debug('The symbol state is: %s and cooldown end time is: %s', current_symbol_state, cooldown_end_time)
-
+                
+        else: 
+            raise RecordNotFoundError('The symbol id has not been found in the database. Check your symbol id again')
+        
+        if current_symbol_state == 0:
+            return True, current_symbol_state
+        elif current_symbol_state == 1:
             current_timestamp: datetime = datetime.now()
             cooldown_end_time: str = execute_query(DB_PATH, "select cooldown_end_time from circuit_breaker_states where symbol_id = ?", (symbol_id, ))[0]
             cooldown_end_time_datetime: datetime = datetime.fromisoformat(cooldown_end_time) if cooldown_end_time else datetime.min
@@ -105,13 +111,8 @@ class FinancialDataDownloader:
                 logging.debug("Since current time > cooldown_end time, updating record. New record = %s", execute_query(DB_PATH, "select * from circuit_breaker_states where symbol_id = ?", (symbol_id, )))
 
                 return True, updated_state
-        else: 
-            raise RecordNotFoundError('The symbol id has not been found in the database. Check your symbol id again')
-        
-        if current_symbol_state == 0:
-            return True, current_symbol_state
-        elif current_symbol_state == 1:
-            return False, current_symbol_state
+            else: 
+                return False, current_symbol_state
         else: 
             return True, current_symbol_state
     
@@ -131,8 +132,6 @@ class FinancialDataDownloader:
         current_timestamp_in_iso_format = datetime.now().isoformat()
 
         circuit_state_func_result, current_symbol_state = self._check_circuit_state(symbol=symbol)
-        #current_symbol_state = datetime.fromisoformat(current_symbol_state)
-        #if current_timestamp_in_iso_format > current_symbol_state:
         if circuit_state_func_result:
             api_calling: bool = self._api_call_with_retry(symbol=symbol, market=market)
             if api_calling:
@@ -142,7 +141,7 @@ class FinancialDataDownloader:
                 self._update_circuit_state(symbol=symbol, success=False)
 
                 return {}
-        else:
+        else: #in case the circuit state is Open
             logging.debug('The circuit state is Open now. So, skipping the call.')
             execute_query(DB_PATH, "insert into error_metrics(timestamp, error_type, resolution) values(?, ?, ?)", (current_timestamp_in_iso_format, Error_Type.CIRCUIT_OPEN.value, Resolution.SKIPPED.value))
             logging.debug('After inserting values for open circuit, the record is: %s', execute_query(DB_PATH, "select * from error_metrics where timestamp = ?", (current_timestamp_in_iso_format, )))
@@ -162,49 +161,92 @@ class FinancialDataDownloader:
         """
         get_symbol_id: tuple = execute_query(DB_PATH, "select id from symbols where ticker = ?", (symbol, ))
         symbol_id: int = int(get_symbol_id[0]) if get_symbol_id else 0
+        get_current_symbol_state: tuple = execute_query(DB_PATH, "select state from circuit_breaker_states where symbol_id = ?", (symbol_id, ))
+        current_state: int = int(get_current_symbol_state[0]) if get_current_symbol_state else 0 #current state is closed by default
+
+        #if current_state == 1:
+
+
         if success:
             if symbol_id:
-                get_current_symbol_state: tuple = execute_query(DB_PATH, "select state from circuit_breaker_states where symbol_id = ?", (symbol_id, ))
-                current_state: int = int(get_current_symbol_state[0]) if get_current_symbol_state else 0 #current state is closed by default
-                if current_state == 2:
+                if current_state == 2:  #half open state successful API call
+                    updated_state = Circuit_State.CLOSED.value
+                    updated_failure_count = 0
+                    updated_last_failure_time = None
                     logging.debug('Before the update: %s', execute_query(DB_PATH, "select * from circuit_breaker_states where symbol_id = ?", (symbol_id, )))
-                    execute_query(DB_PATH, "update circuit_breaker_states set failure_count = ?, last_fail_time = ?, state = ? where id = ?", (0, None, Circuit_State.CLOSED.value, symbol_id))
+                    execute_query(DB_PATH, "update circuit_breaker_states set failure_count = ?, last_fail_time = ?, state = ? where symbol_id = ?", (updated_failure_count, updated_last_failure_time, updated_state, symbol_id))
                     logging.debug('In the success block, after updating db record result is: %s', execute_query(DB_PATH, "select * from circuit_breaker_states where symbol_id = ?", (symbol_id, )))
                     return
-                else:
+                else: #state is closed
                     logging.debug('Before the update: %s', execute_query(DB_PATH, "select * from circuit_breaker_states where symbol_id = ?", (symbol_id, )))
-                    execute_query(DB_PATH, "update circuit_breaker_states set failure_count = ?, last_fail_time = ? where id = ?", (0, None, symbol_id))
+                    execute_query(DB_PATH, "update circuit_breaker_states set failure_count = ?, last_fail_time = ? where symbol_id = ?", (0, None, symbol_id))
                     logging.debug('In the success block, after updating db record result when previous state was closed is: %s', execute_query(DB_PATH, "select * from circuit_breaker_states where symbol_id = ?", (symbol_id, )))
                     return
             else: 
                 logging.debug('There is something wrong with the symbol id. The symbol id here is: %d', symbol_id)
                 raise RecordNotFoundError('Symbol id does not exists!')
         else:
-            failure_count_result, last_failure_time_result = execute_query(DB_PATH, "select failure_count, last_fail_time from circuit_breaker_states where id = ?", (symbol_id, )) 
+            #calculating time window to check if the last failure occured within the last 5 minutes
+            failure_count_result, last_failure_time_result, existing_state, existing_cooldown_end_time = execute_query(DB_PATH, "select failure_count, last_fail_time, state, cooldown_end_time from circuit_breaker_states where symbol_id = ?", (symbol_id, )) 
             if last_failure_time_result: 
                 last_failure_time_result = datetime.fromisoformat(last_failure_time_result)
+                logging.debug('The last failure time returned from db query is: %s', last_failure_time_result)
             else: 
-                logging.debug('Last failure time result is None, so can\'t convert to datetime object. Using 0 as default value')
-                raise ArithmeticError
+                logging.debug('Last failure time returned is None, so no errors have occured in the last 5 minutes and this is the first one.')
+                failure_count = 1
+                last_failure_time_result_= (datetime.now()).isoformat()
+                updated_state = existing_state
+                updated_cooldown_end_time = existing_cooldown_end_time
 
             time_difference_in_seconds = (datetime.now() - last_failure_time_result).total_seconds()
-            new_failure_count: int = 0
-            current_timestamp_in_iso_format = (datetime.now()).isoformat()
+            if isinstance(last_failure_time_result, datetime): 
+                last_failure_time_result = last_failure_time_result.isoformat()
 
-            if time_difference_in_seconds > 300 or not last_failure_time_result:
-                new_failure_count = 1
+            if time_difference_in_seconds > 300: #if last fail time more than 5 minutes, treat as new fail sequence
+                logging.debug('Last failure time is > 5 minutes, so no errors have occured in the last 5 minutes and this is the first one.')
+                failure_count = 1
+                last_failure_time_result_= (datetime.now()).isoformat()
+                updated_state = existing_state
+                updated_cooldown_end_time = existing_cooldown_end_time
+            
             else:
-                new_failure_count = failure_count_result + 1
+                failure_count = failure_count_result + 1
 
-            if new_failure_count >= 3:
-                new_updated_state = Circuit_State.OPEN.value
-                new_cooldown_end_time = (datetime.now() + timedelta(hours=1)).isoformat()   
-                update_db_record_result = execute_query(DB_PATH, "update circuit_breaker_states set failure_count = ?, last_fail_time = ?, state = ?, cooldown_end_time = ? where id = ?", (new_failure_count, current_timestamp_in_iso_format, new_updated_state, new_cooldown_end_time, symbol_id))
-                logging.debug('The result of updating db circuit breaker state is: %s', update_db_record_result)
+            if failure_count >= 3:
+                updated_state = Circuit_State.OPEN.value
+                updated_cooldown_end_time = (datetime.now() + timedelta(hours=1)).isoformat()
 
-            else:
-                updating_db_record = execute_query(DB_PATH, "update circuit_breaker_states set failure_count = ?, last_fail_time = ? where id = ?", (new_failure_count, current_timestamp_in_iso_format, symbol_id))
-                logging.debug('The new failure count < 3, so the query result is: %s', updating_db_record)
+            else: 
+                updated_state = existing_state
+                updated_cooldown_end_time = existing_cooldown_end_time
+
+            execute_query(DB_PATH, "update circuit_breaker_states set failure_count = ?, last_fail_time = ?, state = ?, cooldown_end_time = ? where symbol_id = ?", (failure_count, last_failure_time_result, updated_state, updated_cooldown_end_time, symbol_id))
+            #execute_query(DB_PATH, "update circuit_breaker_states set failure_count = ?, last_fail_time = ?, state = ?, cooldown_end_time = ? where id = ?", (failure_count, current_timestamp_in_iso_format, ))
+
+
+            # if current_state == 2:  #half open state unsuccessful API call
+            #     updated_state = Circuit_State.OPEN.value
+            #     updated_failure_count = 1
+            #     updated_last_failure_time = datetime.now()
+            #     updated_cooldown_end_time = updated_last_failure_time + timedelta(hours=1)
+            #     execute_query(DB_PATH, "update circuit_breaker_states set failure_count = ?, last_fail_time = ?, state = ?, cooldown_end_time = ? where id = ?", (updated_failure_count, updated_last_failure_time.isoformat(), updated_state, updated_cooldown_end_time.isoformat(), symbol_id))
+
+            # else:
+            # #using 3 API failures occur within a 5-minute rolling window (as trigger condition)            
+
+                
+
+            #     new_updated_state = Circuit_State.CLOSED.value    
+            #     if new_failure_count >= 3:
+            #         new_updated_state = Circuit_State.OPEN.value
+            #         new_cooldown_end_time = (datetime.now() + timedelta(hours=1)).isoformat()   
+                    # update_db_record_result = execute_query(DB_PATH, "update circuit_breaker_states set failure_count = ?, last_fail_time = ?, state = ?, cooldown_end_time = ? where id = ?", (new_failure_count, current_timestamp_in_iso_format, new_updated_state, new_cooldown_end_time, symbol_id))
+                    # logging.debug('The result of updating db circuit breaker state is: %s', update_db_record_result)
+
+                # else:
+                #     updating_db_record = execute_query(DB_PATH, "update circuit_breaker_states set failure_count = ?, last_fail_time = ? where id = ?", (new_failure_count, current_timestamp_in_iso_format, symbol_id))
+                #     logging.debug('The new failure count < 3, so the query result is: %s', updating_db_record)
+
 
     def _api_call_with_retry(self, symbol: str, market: str):
         url: str = f'{self.base_url}/query?function=TIME_SERIES_DAILY&symbol={symbol}.{market}&outputsize=5&apikey={self.api_key}'
@@ -217,8 +259,10 @@ class FinancialDataDownloader:
             if response_code == 200:
                 if "Error Message" in response.text:
                     logging.debug('The error is: %s', response.text)
-                    fetching_failure_counts += 1
+                    logging.debug('Error in API response. Please check your parameters again')
+                    #fetching_failure_counts += 1
                     return {}
+                
                 print('Reqeust has been successful') 
                 return response.json()
 
@@ -226,16 +270,29 @@ class FinancialDataDownloader:
                 fetching_failure_counts += 1
                 wait_time = 65
                 print(f'429 Error: Too many requests. Retry after {wait_time} seconds...')
+                logging.debug('Api request returned 429 code. One retry attempt left after waiting %d seconds', wait_time)
                 time.sleep(wait_time)
                 second_api_call = self.fetch_daily_data(symbol, market)
-                if not second_api_call: fetching_failure_counts += 1    
+                if not second_api_call:
+                    logging.debug('Second retry attempt also failed. Returning empty dict.')
+                    return {} 
+                    #fetching_failure_counts += 1    
 
             elif response_code >= 500 and response_code < 600:
-                fetching_failure_counts += 1
-                wait_time = 30
-                print(f'Server error {response_code}: Wait for 30 seconds before retrying')
-                time.sleep(wait_time)
-                return self.fetch_daily_data(symbol, market)
+                logging.debug('Server error. Retrying after 10 seconds')
+                time.sleep(10)
+                first_api_retry_call = self.fetch_daily_data(symbol, market)
+                if not first_api_retry_call:
+                    logging.debug('First API retry call failed. Retrying after 20 seconds')
+                    time.sleep(20)
+                second_api_retry_call = self.fetch_daily_data(symbol, market)
+                if not second_api_retry_call:
+                    logging.debug('Second API retry call failed. Retrying after 40 seconds')
+                    time.sleep(40)
+                final_api_call = self.fetch_daily_data(symbol, market)
+                if not final_api_call:
+                    logging.debug("All the API retries have been made without a successful response. So, returning an empty dict") 
+                    return {}
 
             else:
                 fetching_failure_counts += 1 
@@ -344,11 +401,11 @@ result_class = FinancialDataDownloader()
 # print(storing_data_result)
 #print(execute_query(DB_PATH, "update circuit_breaker_states set state = ? where symbol_id = ?", (Circuit_State.OPEN.value, 2)))
 #print(execute_query(DB_PATH, "insert into circuit_breaker_states(symbol_id, failure_count, state) values(?, ?, ?)", (2, 0, Circuit_State.HALF_OPEN.value)))
-print(result_class.fetch_daily_data('TCS'))
+#print(result_class.fetch_daily_data('TCS'))
 
 #print(execute_query(DB_PATH, "select * from circuit_breaker_states where symbol_id = ?", (2, )))
 
-# myResult = execute_query(DB_PATH, "select * from symbols where id = ?", (3, ))
+# myResult = execute_query(DB_PATH, "select * from symbols where id = ?", (2, ))
 # print(myResult)
 
 # print(f'The tables currently are: {list_tables(DB_PATH)}')
