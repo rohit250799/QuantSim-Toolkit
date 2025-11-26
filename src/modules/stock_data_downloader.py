@@ -9,7 +9,6 @@ import pandas as pd
 from src.custom_errors import RecordNotFoundError
 
 
-
 from dotenv import load_dotenv
 from enum import Enum
 from db.database import execute_query, insert_bulk_data, DB_PATH
@@ -31,12 +30,18 @@ class Error_Type(Enum):
     VALIDATION_ERROR = 3
     CIRCUIT_OPEN = 4
     UNEXPECTED_ERROR = 5
+    API_SUCCESS = 6
 
 class Resolution(Enum):
     RETRIED = 0
     SKIPPED = 1
     ABORTED = 2
     CONTINUED = 3
+
+class Alert_Type(Enum):
+    LOW_SUCCESS_RATE = 0
+    CIRCUIT_OPENED = 1
+    DATA_GAP = 2
 
 class FinancialDataDownloader:
     def __init__(self):
@@ -87,7 +92,8 @@ class FinancialDataDownloader:
                 init_last_failure_time = None
                 init_cooldown_end_time = None
                 execute_query(DB_PATH, "insert into circuit_breaker_states(symbol_id, failure_count, last_fail_time, state, cooldown_end_time) values(?, ?, ?, ?, ?)", (symbol_id, init_failure_count, init_last_failure_time, init_state, init_cooldown_end_time))
-                logging.debug("After inserting record in table, the record is: %s", execute_query(DB_PATH, "select * from circuit_breaker_states where symbol_id = ?", (symbol_id, )))
+                logging.debug("After inserting record in circuit breaker states table, the record is: %s", execute_query(DB_PATH, "select * from circuit_breaker_states where symbol_id = ?", (symbol_id, )))
+                current_symbol_state = execute_query(DB_PATH, "select state, cooldown_end_time from circuit_breaker_states where symbol_id = ?", (symbol_id, ))
             else:
                 current_symbol_state, cooldown_end_time = execute_query(DB_PATH, "select state, cooldown_end_time from circuit_breaker_states where symbol_id = ?", (symbol_id, ))
                 logging.debug('The symbol state is: %s and cooldown end time is: %s', current_symbol_state, cooldown_end_time)
@@ -134,13 +140,15 @@ class FinancialDataDownloader:
         circuit_state_func_result, current_symbol_state = self._check_circuit_state(symbol=symbol)
         if circuit_state_func_result:
             api_calling: bool = self._api_call_with_retry(symbol=symbol, market=market)
+            logging.debug('Since the API call has completed, logging the result to API call metrics table in the db')
+
             if api_calling:
                 self._update_circuit_state(symbol=symbol, success=True)
                 return api_calling
             else:
                 self._update_circuit_state(symbol=symbol, success=False)
-
                 return {}
+            
         else: #in case the circuit state is Open
             logging.debug('The circuit state is Open now. So, skipping the call.')
             execute_query(DB_PATH, "insert into error_metrics(timestamp, error_type, resolution) values(?, ?, ?)", (current_timestamp_in_iso_format, Error_Type.CIRCUIT_OPEN.value, Resolution.SKIPPED.value))
@@ -164,12 +172,9 @@ class FinancialDataDownloader:
         get_current_symbol_state: tuple = execute_query(DB_PATH, "select state from circuit_breaker_states where symbol_id = ?", (symbol_id, ))
         current_state: int = int(get_current_symbol_state[0]) if get_current_symbol_state else 0 #current state is closed by default
 
-        #if current_state == 1:
-
-
         if success:
             if symbol_id:
-                if current_state == 2:  #half open state successful API call
+                if current_state == 2: #half open state successful API call
                     updated_state = Circuit_State.CLOSED.value
                     updated_failure_count = 0
                     updated_last_failure_time = None
@@ -221,32 +226,6 @@ class FinancialDataDownloader:
                 updated_cooldown_end_time = existing_cooldown_end_time
 
             execute_query(DB_PATH, "update circuit_breaker_states set failure_count = ?, last_fail_time = ?, state = ?, cooldown_end_time = ? where symbol_id = ?", (failure_count, last_failure_time_result, updated_state, updated_cooldown_end_time, symbol_id))
-            #execute_query(DB_PATH, "update circuit_breaker_states set failure_count = ?, last_fail_time = ?, state = ?, cooldown_end_time = ? where id = ?", (failure_count, current_timestamp_in_iso_format, ))
-
-
-            # if current_state == 2:  #half open state unsuccessful API call
-            #     updated_state = Circuit_State.OPEN.value
-            #     updated_failure_count = 1
-            #     updated_last_failure_time = datetime.now()
-            #     updated_cooldown_end_time = updated_last_failure_time + timedelta(hours=1)
-            #     execute_query(DB_PATH, "update circuit_breaker_states set failure_count = ?, last_fail_time = ?, state = ?, cooldown_end_time = ? where id = ?", (updated_failure_count, updated_last_failure_time.isoformat(), updated_state, updated_cooldown_end_time.isoformat(), symbol_id))
-
-            # else:
-            # #using 3 API failures occur within a 5-minute rolling window (as trigger condition)            
-
-                
-
-            #     new_updated_state = Circuit_State.CLOSED.value    
-            #     if new_failure_count >= 3:
-            #         new_updated_state = Circuit_State.OPEN.value
-            #         new_cooldown_end_time = (datetime.now() + timedelta(hours=1)).isoformat()   
-                    # update_db_record_result = execute_query(DB_PATH, "update circuit_breaker_states set failure_count = ?, last_fail_time = ?, state = ?, cooldown_end_time = ? where id = ?", (new_failure_count, current_timestamp_in_iso_format, new_updated_state, new_cooldown_end_time, symbol_id))
-                    # logging.debug('The result of updating db circuit breaker state is: %s', update_db_record_result)
-
-                # else:
-                #     updating_db_record = execute_query(DB_PATH, "update circuit_breaker_states set failure_count = ?, last_fail_time = ? where id = ?", (new_failure_count, current_timestamp_in_iso_format, symbol_id))
-                #     logging.debug('The new failure count < 3, so the query result is: %s', updating_db_record)
-
 
     def _api_call_with_retry(self, symbol: str, market: str):
         url: str = f'{self.base_url}/query?function=TIME_SERIES_DAILY&symbol={symbol}.{market}&outputsize=5&apikey={self.api_key}'
@@ -255,60 +234,116 @@ class FinancialDataDownloader:
         try:
             response: requests.Response = requests.get(url=url, headers=headers, timeout=10)
             response_code = response.status_code
+            api_calling_success: int = 0
+            current_time_for_timestamp_insertion: str = datetime.now().isoformat()
+            api_endpoint_for_api_metrics_table: str = 'https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=RELIANCE.BSE&outputsize=full&apikey=demo'
 
             if response_code == 200:
                 if "Error Message" in response.text:
                     logging.debug('The error is: %s', response.text)
                     logging.debug('Error in API response. Please check your parameters again')
-                    #fetching_failure_counts += 1
                     return {}
-                
-                print('Reqeust has been successful') 
+                print('Reqeust has been successful')
+                api_calling_success = 1
+                response_time_ms_in_seconds = response.elapsed.total_seconds()
+                logging.debug('Entering data into the api metrics table for status code = 200 and valid data. ')
+                execute_query(DB_PATH, "insert into api_call_metrics(timestamp, symbol, endpoint, status_code, response_time_ms, success) values (?, ?, ?, ?, ?, ?)", (current_time_for_timestamp_insertion, symbol,api_endpoint_for_api_metrics_table, response_code, response_time_ms_in_seconds, api_calling_success))
+                logging.debug('The record inserted is: %s', execute_query(DB_PATH, "select * from api_call_metrics where timestamp = ? and symbol = ?", (current_time_for_timestamp_insertion, symbol)))
                 return response.json()
 
             elif response_code == 429:
+                api_calling_success = 0
+                response_time_ms_in_seconds = response.elapsed.total_seconds()
+                error_message_for_api_call_metrics_table: str = 'Retry needed'
                 fetching_failure_counts += 1
                 wait_time = 65
                 print(f'429 Error: Too many requests. Retry after {wait_time} seconds...')
                 logging.debug('Api request returned 429 code. One retry attempt left after waiting %d seconds', wait_time)
+                execute_query(DB_PATH, "insert into api_call_metrics(timestamp, symbol, endpoint, status_code, response_time_ms, success, error_message) values (?, ?, ?, ?, ?, ?)", (current_time_for_timestamp_insertion, symbol, api_endpoint_for_api_metrics_table, response_code, response_time_ms_in_seconds, api_calling_success, error_message_for_api_call_metrics_table))
                 time.sleep(wait_time)
+                logging.debug('Inserted record to api call metrics table. Record is: %s', execute_query(DB_PATH, "select * from api_call_metrics_table where timestamp = ? and symbol = ?", (current_time_for_timestamp_insertion, symbol)))
                 second_api_call = self.fetch_daily_data(symbol, market)
                 if not second_api_call:
+                    response_time_ms_in_seconds = response.elapsed.total_seconds()
+                    error_message_for_api_call_metrics_table: str = 'Retry needed'
                     logging.debug('Second retry attempt also failed. Returning empty dict.')
+                    execute_query(DB_PATH, "insert into api_call_metrics(timestamp, symbol, endpoint, status_code, response_time_ms, success, error_message) values (?, ?, ?, ?, ?, ?)", (current_time_for_timestamp_insertion, symbol, api_endpoint_for_api_metrics_table, response_code, response_time_ms_in_seconds, api_calling_success, error_message_for_api_call_metrics_table))
+                    
+                    logging.debug('Inserted record to api call metrics table. Record is: %s', execute_query(DB_PATH, "select * from api_call_metrics_table where timestamp = ? and symbol = ?", (current_time_for_timestamp_insertion, symbol)))
+
                     return {} 
-                    #fetching_failure_counts += 1    
 
             elif response_code >= 500 and response_code < 600:
                 logging.debug('Server error. Retrying after 10 seconds')
+                api_calling_success = 0
+                response_time_ms_in_seconds = response.elapsed.total_seconds()
+                error_message_for_api_call_metrics_table: str = 'Retry needed'
+                execute_query(DB_PATH, "insert into api_call_metrics(timestamp, symbol, endpoint, status_code, response_time_ms, success, error_message) values (?, ?, ?, ?, ?, ?)", (current_time_for_timestamp_insertion, symbol, api_endpoint_for_api_metrics_table, response_code, response_time_ms_in_seconds, api_calling_success, error_message_for_api_call_metrics_table))               
+                
+                logging.debug('Inserted record to api call metrics table. Record is: %s', execute_query(DB_PATH, "select * from api_call_metrics_table where timestamp = ? and symbol = ?", (current_time_for_timestamp_insertion, symbol)))
+
                 time.sleep(10)
                 first_api_retry_call = self.fetch_daily_data(symbol, market)
                 if not first_api_retry_call:
                     logging.debug('First API retry call failed. Retrying after 20 seconds')
+                    api_calling_success = 0
+                    response_time_ms_in_seconds = response.elapsed.total_seconds()
+                    error_message_for_api_call_metrics_table: str = 'Retry needed'
+                    execute_query(DB_PATH, "insert into api_call_metrics(timestamp, symbol, endpoint, status_code, response_time_ms, success, error_message) values (?, ?, ?, ?, ?, ?)", (current_time_for_timestamp_insertion, symbol, api_endpoint_for_api_metrics_table, response_code, response_time_ms_in_seconds, api_calling_success, error_message_for_api_call_metrics_table))                    
+                    logging.debug('Inserted record to api call metrics table. Record is: %s', execute_query(DB_PATH, "select * from api_call_metrics_table where timestamp = ? and symbol = ?", (current_time_for_timestamp_insertion, symbol)))
                     time.sleep(20)
                 second_api_retry_call = self.fetch_daily_data(symbol, market)
                 if not second_api_retry_call:
                     logging.debug('Second API retry call failed. Retrying after 40 seconds')
+                    api_calling_success = 0
+                    response_time_ms_in_seconds = response.elapsed.total_seconds()
+                    error_message_for_api_call_metrics_table: str = 'Retry needed'
+                    execute_query(DB_PATH, "insert into api_call_metrics(timestamp, symbol, endpoint, status_code, response_time_ms, success, error_message) values (?, ?, ?, ?, ?, ?)", (current_time_for_timestamp_insertion, symbol, api_endpoint_for_api_metrics_table, response_code, response_time_ms_in_seconds, api_calling_success, error_message_for_api_call_metrics_table))                    
+                    
+                    logging.debug('Inserted record to api call metrics table. Record is: %s', execute_query(DB_PATH, "select * from api_call_metrics_table where timestamp = ? and symbol = ?", (current_time_for_timestamp_insertion, symbol)))
                     time.sleep(40)
-                final_api_call = self.fetch_daily_data(symbol, market)
+                    final_api_call = self.fetch_daily_data(symbol, market)
                 if not final_api_call:
-                    logging.debug("All the API retries have been made without a successful response. So, returning an empty dict") 
+                    logging.debug("All the API retries have been made without a successful response. So, returning an empty dict")
+                    api_calling_success = 0
+                    response_time_ms_in_seconds = response.elapsed.total_seconds()
+                    error_message_for_api_call_metrics_table: str = 'Retry needed'
+                    execute_query(DB_PATH, "insert into api_call_metrics(timestamp, symbol, endpoint, status_code, response_time_ms, success, error_message) values (?, ?, ?, ?, ?, ?)", (current_time_for_timestamp_insertion, symbol, api_endpoint_for_api_metrics_table, response_code, response_time_ms_in_seconds, api_calling_success, error_message_for_api_call_metrics_table))                    
+                    
+                    logging.debug('Inserted record to api call metrics table. Record is: %s', execute_query(DB_PATH, "select * from api_call_metrics_table where timestamp = ? and symbol = ?", (current_time_for_timestamp_insertion, symbol))) 
                     return {}
 
             else:
-                fetching_failure_counts += 1 
+                fetching_failure_counts += 1
+                api_calling_success = 0
+                response_time_ms = response.elapsed
+                error_message_for_api_call_metrics_table: str = 'Retry needed'
+                execute_query(DB_PATH, "insert into api_call_metrics(timestamp, symbol, endpoint, status_code, response_time_ms, success, error_message) values (?, ?, ?, ?, ?, ?)", (current_time_for_timestamp_insertion, symbol, api_endpoint_for_api_metrics_table, response_code, response_time_ms, api_calling_success, error_message_for_api_call_metrics_table))                    
+                
+                logging.debug('Inserted record to api call metrics table. Record is: %s', execute_query(DB_PATH, "select * from api_call_metrics_table where timestamp = ? and symbol = ?", (current_time_for_timestamp_insertion, symbol))) 
                 response.raise_for_status()
 
         except requests.exceptions.RequestException as e:
             fetching_failure_counts += 1
-            print(f'Reques failed: {e}')
+            print(f'Request failed: {e}')
+            api_calling_success = 0
+            response_time_ms_in_seconds = response.elapsed.total_seconds()
+            error_message_for_api_call_metrics_table: str = 'Retry needed'
+            execute_query(DB_PATH, "insert into api_call_metrics(timestamp, symbol, endpoint, status_code, response_time_ms, success, error_message) values (?, ?, ?, ?, ?, ?)", (current_time_for_timestamp_insertion, symbol, api_endpoint_for_api_metrics_table, response_code, response_time_ms_in_seconds, api_calling_success, error_message_for_api_call_metrics_table))                    
+            
+            logging.debug('Inserted record to api call metrics table. Record is: %s', execute_query(DB_PATH, "select * from api_call_metrics_table where timestamp = ? and symbol = ?", (current_time_for_timestamp_insertion, symbol)))
             raise
-
-            #finally:
-                #self._update_circuit_state(symbol=symbol)
 
         else:
             logging.debug('API calls not allowed as the circuit is open. Please try after some time')
             return {}
+        
+    def _check_and_trigger_alerts(self):
+        """Calculates hourly API success rate and creates alerts for symbols below 90% threshold"""
+        current_time = datetime.now()
+        one_hour_previous_to_current_time: datetime = current_time - timedelta(hours=1)
+        success_rate_threshold: int = 90
+        pass
 
 
     def process_and_store(self, symbol: str, api_response: dict) -> dict:
@@ -396,7 +431,8 @@ class FinancialDataDownloader:
 
 result_class = FinancialDataDownloader()
 
-# data = result_class.fetch_daily_data(symbol='NMDC', market='BSE')
+data = result_class.fetch_daily_data(symbol='NMDC', market='BSE')
+print(data)
 # storing_data_result = result_class.process_and_store('NMDC', data)
 # print(storing_data_result)
 #print(execute_query(DB_PATH, "update circuit_breaker_states set state = ? where symbol_id = ?", (Circuit_State.OPEN.value, 2)))

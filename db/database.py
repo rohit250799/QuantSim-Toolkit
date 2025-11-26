@@ -103,8 +103,10 @@ error_metrics_table_creation_query: str = "create table if not exists error_metr
 
 alerts_table_creation_query: str = "create table if not exists alerts(id INTEGER PRIMARY KEY, timestamp TEXT, alert_type INTEGER, symbol TEXT, message TEXT, severity INTEGER, acknowledged INTEGER)"
 
-alerts_table_res = execute_query(DB_PATH, alerts_table_creation_query)
-# api_logs_table_res = execute_query(DB_PATH, api_logs_table_creation_query)
+api_call_metrics_table_creation_query: str = "create table if not exists api_call_metrics(id INTEGER PRIMARY KEY, timestamp TEXT, symbol TEXT, endpoint TEXT, status_code INTEGER, response_time_ms INTEGER, success INTEGER, error_message TEXT)"
+
+#alerts_table_res = execute_query(DB_PATH, alerts_table_creation_query)
+api_call_metrics_table_res = execute_query(DB_PATH, api_call_metrics_table_creation_query)
 
 #print(list_tables(DB_PATH))
 
