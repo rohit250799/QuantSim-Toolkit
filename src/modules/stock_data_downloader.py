@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 from enum import Enum
 from db.database import execute_query, insert_bulk_data, DB_PATH
 
-logging.basicConfig(filename='logs/api_response_logs.txt', level=logging.DEBUG, 
+logging.basicConfig(filename='logs/api_response_logs.txt', level=logging.DEBUG,
                     format=' %(asctime)s -  %(levelname)s -  %(message)s')
 
 load_dotenv()
@@ -42,6 +42,30 @@ class Alert_Type(Enum):
     LOW_SUCCESS_RATE = 0
     CIRCUIT_OPENED = 1
     DATA_GAP = 2
+    HIGH_LATENCY = 3
+    CONNECTION_ERROR = 4
+
+class Alert_Severity_Level(Enum):
+    """
+    Warning when minor issue, no immediate action required. 
+    Error when its a significant issue, affecting data quality
+    Critical when there is a system impairment requiring immediate investigation
+    """
+    WARNING = 0
+    ERROR = 1
+    CRITICAL = 2
+
+class Alert_Acknowledged(Enum):
+    """
+    Unacknowledged when alert is generated, but not yet reviewed
+    Acknowledged when alert is reviewed by human operator
+    Resolved is when issue addressed and fixed
+    False positive is when alert was incorrect and no action was needed
+    """
+    UNACKNOWLEDGED = 0
+    ACKNOWLEDGED = 1
+    RESOLVED = 2
+    FALSE_POSITIVE = 3
 
 class FinancialDataDownloader:
     def __init__(self):
@@ -144,15 +168,18 @@ class FinancialDataDownloader:
 
             if api_calling:
                 self._update_circuit_state(symbol=symbol, success=True)
+                self._check_and_trigger_alerts(symbol)
                 return api_calling
             else:
                 self._update_circuit_state(symbol=symbol, success=False)
+                self._check_and_trigger_alerts(symbol)
                 return {}
             
         else: #in case the circuit state is Open
             logging.debug('The circuit state is Open now. So, skipping the call.')
             execute_query(DB_PATH, "insert into error_metrics(timestamp, error_type, resolution) values(?, ?, ?)", (current_timestamp_in_iso_format, Error_Type.CIRCUIT_OPEN.value, Resolution.SKIPPED.value))
-            logging.debug('After inserting values for open circuit, the record is: %s', execute_query(DB_PATH, "select * from error_metrics where timestamp = ?", (current_timestamp_in_iso_format, )))
+            logging.debug('After inserting values for open circuit in error metrics table, the record is: %s', execute_query(DB_PATH, "select * from error_metrics where timestamp = ?", (current_timestamp_in_iso_format, )))
+            self._check_and_trigger_alerts(symbol=symbol)
             return {}
             
 
@@ -178,12 +205,12 @@ class FinancialDataDownloader:
                     updated_state = Circuit_State.CLOSED.value
                     updated_failure_count = 0
                     updated_last_failure_time = None
-                    logging.debug('Before the update: %s', execute_query(DB_PATH, "select * from circuit_breaker_states where symbol_id = ?", (symbol_id, )))
+                    logging.debug('Before the updatem circuit breaker state record: %s', execute_query(DB_PATH, "select * from circuit_breaker_states where symbol_id = ?", (symbol_id, )))
                     execute_query(DB_PATH, "update circuit_breaker_states set failure_count = ?, last_fail_time = ?, state = ? where symbol_id = ?", (updated_failure_count, updated_last_failure_time, updated_state, symbol_id))
-                    logging.debug('In the success block, after updating db record result is: %s', execute_query(DB_PATH, "select * from circuit_breaker_states where symbol_id = ?", (symbol_id, )))
+                    logging.debug('In the success block, after updating db record for successful state transition, result is: %s', execute_query(DB_PATH, "select * from circuit_breaker_states where symbol_id = ?", (symbol_id, )))
                     return
                 else: #state is closed
-                    logging.debug('Before the update: %s', execute_query(DB_PATH, "select * from circuit_breaker_states where symbol_id = ?", (symbol_id, )))
+                    logging.debug('Before the update, circuit breaker state is: %s', execute_query(DB_PATH, "select * from circuit_breaker_states where symbol_id = ?", (symbol_id, )))
                     execute_query(DB_PATH, "update circuit_breaker_states set failure_count = ?, last_fail_time = ? where symbol_id = ?", (0, None, symbol_id))
                     logging.debug('In the success block, after updating db record result when previous state was closed is: %s', execute_query(DB_PATH, "select * from circuit_breaker_states where symbol_id = ?", (symbol_id, )))
                     return
@@ -336,15 +363,41 @@ class FinancialDataDownloader:
 
         else:
             logging.debug('API calls not allowed as the circuit is open. Please try after some time')
-            return {}
-        
-    def _check_and_trigger_alerts(self):
+            return {}    
+
+    def _check_and_trigger_alerts(self, symbol: str) -> None:
         """Calculates hourly API success rate and creates alerts for symbols below 90% threshold"""
         current_time = datetime.now()
         one_hour_previous_to_current_time: datetime = current_time - timedelta(hours=1)
         success_rate_threshold: int = 90
-        pass
+        total_api_calls_made_in_current_window: int = execute_query(DB_PATH, "select count(*) from api_call_metrics where symbol = ? and timestamp >= ? and timestamp <= ?", (symbol, one_hour_previous_to_current_time, current_time))[0]
+        if total_api_calls_made_in_current_window > 0:
+            logging.debug('The number of total api calls made in the current window were: %d', total_api_calls_made_in_current_window)
+            total_successful_api_calls_made_in_current_window: int = execute_query(DB_PATH, "select count(*) from api_call_metrics where symbol = ? and timestamp >= ? and timestamp <= ? and success = ?", (symbol, one_hour_previous_to_current_time, current_time, 1))[0]
+            if total_successful_api_calls_made_in_current_window > 0:
+                logging.debug('The number of successful api calls made in the current window were: %d', total_successful_api_calls_made_in_current_window)
+                api_call_success_rate = (total_successful_api_calls_made_in_current_window / total_api_calls_made_in_current_window) * 100
+                if api_call_success_rate < success_rate_threshold:
+                    message = f"Success rate {api_call_success_rate}% below threshold {success_rate_threshold} for symbol: {symbol}"
+                    logging.debug('Low success rate of %d, so inserting record into alerts table', api_call_success_rate)
+                    execute_query(DB_PATH, "insert into alerts(timestamp, alert_type, symbol, message, severity, acknowledged) values (?, ?, ?, ?, ?, ?)", (current_time, Alert_Type.LOW_SUCCESS_RATE.value, symbol, message, Alert_Severity_Level.ERROR.value, Alert_Acknowledged.UNACKNOWLEDGED.value))
+                    return
+                else:
+                    logging.debug('Since the success rate threshold has not been crossed, no new records are inserted in api call metrics table')
+                    return
+            else: #for total calls > 0 and successful api calls = 0
+                api_call_success_rate: int = 0
+                message: str = f'Complete API failure - 0% success rate for symbol: {symbol}'
+                logging.debug('Critical alert is to be generated since api call success rate = %d', api_call_success_rate)
+                execute_query(DB_PATH, "insert into alerts(timestamp, alert_type, symbol, message, severity, acknowledged) values (?, ?, ?, ?, ?, ?)", (current_time, Alert_Type.LOW_SUCCESS_RATE.value, symbol, message, Alert_Severity_Level.CRITICAL.value, Alert_Acknowledged.UNACKNOWLEDGED.value))
+                logging.debug('The record inserted is: %s', execute_query(DB_PATH, "select * from alerts where symbol = ? and timestamp = ? and severity = ?", (symbol, current_time, Alert_Severity_Level.CRITICAL.value)))
+                return
 
+
+        else: #means total calls made in current window = 0
+            logging.debug('Since the total number of API calls = %d, no record is inserted to alerts table.', total_api_calls_made_in_current_window)
+
+        return
 
     def process_and_store(self, symbol: str, api_response: dict) -> dict:
         """
