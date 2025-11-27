@@ -110,5 +110,15 @@ error message will be displayed to the terminal.
 
 To check the db contents now, you can query the price_data table and all necessary records will be displayed
 
+8. Now, it comes included with a **production grade error handling system. A Circuit breaker mechanism** is implemented which will **keep transitioning between states based on the API call results**. API call failures will **implement retry logic with exponential backoff and structured logging** - to help in easier debugging.
+
+**API calls will only be allowed if the current state of the circuit breaker is Closed or Half-Open**. The failure count as a result of unsuccessful API calls will be tracked for transparent logging into the db. For this, 3 new tables have been created in the database for **Alerts, Error Metrics and API Call Metrics**.
+
+![Logs into Circuit Breaker States table](screenshots/logging_into_circuit_breaker_states_table.png)
+
+**3 consecutive failures within a 5 minute window will now result in the State Transition of the Circuit Breaker from Closed to Open with a cooldown end time**. When the cooldown end time is over, state will be updated to **Half-Open** and there will be a single API call allowed, which if successful, will again revert back the State of the Circuit Breaker to **Closed**. If unsuccessful, the state will be updated to **Open** again. 
+
+![Logs into API metrics table](screenshots/logging_into_api_metrics_table.png)
+
 
 
