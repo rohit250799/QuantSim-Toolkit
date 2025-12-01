@@ -1,3 +1,4 @@
+from typing import List, Tuple, Any
 import os
 import sqlite3
 import logging
@@ -13,7 +14,7 @@ logging.basicConfig(filename='logs/db_logs.txt', level=logging.DEBUG,
 
 #load_config()
 
-def init_db(db_path: str = DB_PATH):
+def init_db(db_path: str = DB_PATH) -> None:
     """Initialize the database and create directories if necessary"""
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
     conn = sqlite3.connect(db_path)
@@ -23,7 +24,7 @@ def init_db(db_path: str = DB_PATH):
         raise ConnectionError('Could not connect to the database!')
     conn.close()
 
-def list_tables(db_path: str = DB_PATH):
+def list_tables(db_path: str = DB_PATH) -> List[str]:
     """Return a list of all tables present in the database"""
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -33,22 +34,22 @@ def list_tables(db_path: str = DB_PATH):
     conn.close()
     return tables
 
-def execute_query(db_path: str, query: str, params: tuple = ()):
+def execute_query(db_path: str, query: str, params: tuple[Any, ...] = ()) -> Tuple[Any, ...]:
     """Execute queries on the database and return results if any"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute("PRAGMA foreign_keys = ON;")
     cursor.execute(query, params)
     results = cursor.fetchone()
     conn.commit()
     conn.close()
-    return results
+    return results if results else ()
 
-def insert_bulk_data(db_path: str, records: list[tuple]):
+def insert_bulk_data(db_path: str, records: List[Tuple[Any, ...]]) -> int:
     """
     Insert multiple rows in the database with transaction safety. 
     """
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     records_inserted = 0
 
@@ -64,18 +65,17 @@ def insert_bulk_data(db_path: str, records: list[tuple]):
 
         conn.commit()
         records_inserted = cursor.rowcount if cursor.rowcount != -1 else len(records)
-        #print(f'Inserted {records_inserted} new records with duplicates ignored')
-        logging.info(f'Successfully inserted {records_inserted} new records with duplicates ignored')
+        logging.info('Successfully inserted %d new records with duplicates ignored', records_inserted)
 
     except Exception as e:
         conn.rollback()
-        logging.error(f'Transaction rolled back due to error: {e}')
+        logging.error('Transaction rolled back due to error: %s', e)
 
     finally:
         conn.close()
     return records_inserted
 
-def create_table_and_insert_values():
+def create_table_and_insert_values() -> None:
     "Function to test db integration by creating table and inserting values"
     try:
         init_db(db_path=DB_PATH)
@@ -105,8 +105,9 @@ alerts_table_creation_query: str = "create table if not exists alerts(id INTEGER
 
 api_call_metrics_table_creation_query: str = "create table if not exists api_call_metrics(id INTEGER PRIMARY KEY, timestamp TEXT, symbol TEXT, endpoint TEXT, status_code INTEGER, response_time_ms INTEGER, success INTEGER, error_message TEXT)"
 
+#create_index_for_timestamp_field_in_api_call_metrics = execute_query(DB_PATH, "CREATE INDEX idx_timestamp on api_call_metrics(timestamp)")
 #alerts_table_res = execute_query(DB_PATH, alerts_table_creation_query)
-api_call_metrics_table_res = execute_query(DB_PATH, api_call_metrics_table_creation_query)
+#api_call_metrics_table_res = execute_query(DB_PATH, api_call_metrics_table_creation_query)
 
 #print(list_tables(DB_PATH))
 
