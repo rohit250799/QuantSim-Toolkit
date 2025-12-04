@@ -12,7 +12,7 @@ from src.custom_errors import RecordNotFoundError, RecordInsertionError
 
 from dotenv import load_dotenv
 from enum import Enum
-from db.database import execute_query, insert_bulk_data, DB_PATH
+from db.database import execute_query, insert_bulk_data, PROD_DB_PATH as DB_PATH
 
 logging.basicConfig(filename='logs/api_response_logs.txt', level=logging.DEBUG,
                     format=' %(asctime)s -  %(levelname)s -  %(message)s')
@@ -73,7 +73,7 @@ class FinancialDataDownloader:
         self.api_key: str = os.environ.get('ALPHA_VANTAGE_API_KEY', 'key not found')
         self.base_url: str = 'https://www.alphavantage.co'
 
-    def download_historical_stock_data(self, stock_symbol: str, market: str = 'BSE', timeframe: str = 'id', save_path: str = 'data/') -> str:
+    def _download_historical_stock_data(self, stock_symbol: str, market: str = 'BSE', timeframe: str = 'id', save_path: str = 'data/') -> str:
         """
         Download stock data in CSV format    
         """
@@ -108,7 +108,7 @@ class FinancialDataDownloader:
         RecordNotFoundError if the symbol does not exist in the database
         """
         get_symbol_id: Tuple[Any] = execute_query(DB_PATH, "select id from symbols where ticker = ?", (symbol, ))
-        symbol_id: int = int(get_symbol_id[0]) if get_symbol_id else 0
+        symbol_id: int = int(get_symbol_id[0][0]) if get_symbol_id else 0
         if symbol_id:
             record_existence_in_circuit_breaker_states_table = execute_query(DB_PATH, "select * from circuit_breaker_states where symbol_id = ?", (symbol_id, ))
             if not record_existence_in_circuit_breaker_states_table:
@@ -120,7 +120,9 @@ class FinancialDataDownloader:
                 logging.debug("After inserting record in circuit breaker states table, the record is: %s", execute_query(DB_PATH, "select * from circuit_breaker_states where symbol_id = ?", (symbol_id, )))
                 current_symbol_state, cooldown_end_time = execute_query(DB_PATH, "select state, cooldown_end_time from circuit_breaker_states where symbol_id = ?", (symbol_id, ))
             else:
-                current_symbol_state, cooldown_end_time = execute_query(DB_PATH, "select state, cooldown_end_time from circuit_breaker_states where symbol_id = ?", (symbol_id, ))
+                #current_symbol_state, cooldown_end_time = execute_query(DB_PATH, "select state, cooldown_end_time from circuit_breaker_states where symbol_id = ? limit 1 order by last_fail_time desc", (symbol_id, ))
+                current_symbol_state, cooldown_end_time = execute_query(DB_PATH, "select state, cooldown_end_time from circuit_breaker_states where symbol_id = ? order by last_fail_time desc limit 1", (symbol_id, ))[0]
+
                 logging.debug('The symbol state is: %s and cooldown end time is: %s', current_symbol_state, cooldown_end_time)
                 
         else: 
@@ -193,9 +195,9 @@ class FinancialDataDownloader:
         None. It's just used to update the circuit state
         """
         get_symbol_id: Tuple[int, ...] = execute_query(DB_PATH, "select id from symbols where ticker = ?", (symbol, ))
-        symbol_id: int = int(get_symbol_id[0]) if get_symbol_id else 0
+        symbol_id: int = int(get_symbol_id[0][0]) if get_symbol_id else 0
         get_current_symbol_state: Tuple[int] = execute_query(DB_PATH, "select state from circuit_breaker_states where symbol_id = ?", (symbol_id, ))
-        current_state: int = int(get_current_symbol_state[0]) if get_current_symbol_state else 0 #current state is closed by default
+        current_state: int = int(get_current_symbol_state[0][0]) if get_current_symbol_state else 0 #current state is closed by default
 
         if success:
             if symbol_id:
@@ -362,14 +364,14 @@ class FinancialDataDownloader:
         current_time = datetime.now()
         one_hour_previous_to_current_time: datetime = current_time - timedelta(hours=1)
         success_rate_threshold: int = 90
-        total_api_calls_made_in_current_window: int = execute_query(DB_PATH, "select count(*) from api_call_metrics where symbol = ? and timestamp >= ? and timestamp <= ?", (symbol, one_hour_previous_to_current_time.isoformat(), current_time.isoformat()))[0]
+        total_api_calls_made_in_current_window: int = execute_query(DB_PATH, "select count(*) from api_call_metrics where symbol = ? and timestamp >= ? and timestamp <= ?", (symbol, one_hour_previous_to_current_time.isoformat(), current_time.isoformat()))[0][0]
         api_call_success_rate: float = 0.0
         message: str = f'Complete API failure - 0% success rate for symbol: {symbol}'
 
 
         if total_api_calls_made_in_current_window > 0:
             logging.debug('The number of total api calls made in the current window were: %d', total_api_calls_made_in_current_window)
-            total_successful_api_calls_made_in_current_window: int = execute_query(DB_PATH, "select count(*) from api_call_metrics where symbol = ? and timestamp >= ? and timestamp <= ? and success = ?", (symbol, one_hour_previous_to_current_time.isoformat(), current_time.isoformat(), 1))[0]
+            total_successful_api_calls_made_in_current_window: int = execute_query(DB_PATH, "select count(*) from api_call_metrics where symbol = ? and timestamp >= ? and timestamp <= ? and success = ?", (symbol, one_hour_previous_to_current_time.isoformat(), current_time.isoformat(), 1))[0][0]
             if total_successful_api_calls_made_in_current_window > 0:
                 logging.debug('The number of successful api calls made in the current window were: %d', total_successful_api_calls_made_in_current_window)
                 api_call_success_rate = (total_successful_api_calls_made_in_current_window / total_api_calls_made_in_current_window) * 100
@@ -485,7 +487,7 @@ class FinancialDataDownloader:
 
 result_class = FinancialDataDownloader()
 
-#data = result_class.fetch_daily_data(symbol='TCS', market='BSE')
+# data = result_class.fetch_daily_data(symbol='TCS', market='BSE')
 # print(data)
 #storing_data_result = result_class.process_and_store('TCS', data)
 #print(storing_data_result)
