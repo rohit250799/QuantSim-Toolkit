@@ -7,14 +7,14 @@ from pathlib import Path
 #from config.config_manager import load_config
 
 load_dotenv()
-DB_PATH = "db/quantsim.db"
+PROD_DB_PATH = "db/quantsim.db"
 
 logging.basicConfig(filename='logs/db_logs.txt', level=logging.DEBUG, 
                     format=' %(asctime)s -  %(levelname)s -  %(message)s')
 
 #load_config()
 
-def init_db(db_path: str = DB_PATH) -> None:
+def init_db(db_path: str = PROD_DB_PATH) -> None:
     """Initialize the database and create directories if necessary"""
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
     conn = sqlite3.connect(db_path)
@@ -24,7 +24,7 @@ def init_db(db_path: str = DB_PATH) -> None:
         raise ConnectionError('Could not connect to the database!')
     conn.close()
 
-def list_tables(db_path: str = DB_PATH) -> List[str]:
+def list_tables(db_path: str = PROD_DB_PATH) -> List[str]:
     """Return a list of all tables present in the database"""
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -39,11 +39,21 @@ def execute_query(db_path: str, query: str, params: tuple[Any, ...] = ()) -> Tup
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute("PRAGMA foreign_keys = ON;")
-    cursor.execute(query, params)
-    results = cursor.fetchone()
-    conn.commit()
-    conn.close()
-    return results if results else ()
+    try: 
+        cursor.execute(query, params)
+        #checking if the query is a select type query
+        if query.strip().upper().startswith('SELECT'):
+            results = cursor.fetchall()
+            return results if results else tuple()
+        else:
+            conn.commit()
+            return tuple()
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+        logging.debug('There has been a database error while query execution: %s', e)
+        raise #re-reising exception after printing and logging 
+    finally:
+        conn.close()
 
 def insert_bulk_data(db_path: str, records: List[Tuple[Any, ...]]) -> int:
     """
@@ -78,12 +88,12 @@ def insert_bulk_data(db_path: str, records: List[Tuple[Any, ...]]) -> int:
 def create_table_and_insert_values() -> None:
     "Function to test db integration by creating table and inserting values"
     try:
-        init_db(db_path=DB_PATH)
+        init_db(db_path=PROD_DB_PATH)
     except ConnectionError: 
         print('There has been a problem connecting to the database')
     else:
         query: str = 'SELECT name FROM sqlite_master '
-        result = execute_query(DB_PATH, query)
+        result = execute_query(PROD_DB_PATH, query)
         print(result)    
 
 symbol_table_creation_query: str = "create table if not exists symbols (id integer primary key, ticker text unique not null, " \
