@@ -17,7 +17,7 @@ logging.basicConfig(filename='logs/db_logs.txt', level=logging.DEBUG,
 def init_db(db_path: str = PROD_DB_PATH) -> None:
     """Initialize the database and create directories if necessary"""
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
-    conn = sqlite3.connect(db_path)
+    conn: sqlite3.Connection = sqlite3.connect(db_path)
     if conn: 
         print('Successfully connected to the database')
     else: 
@@ -34,26 +34,36 @@ def list_tables(db_path: str = PROD_DB_PATH) -> List[str]:
     conn.close()
     return tables
 
-def execute_query(db_path: str, query: str, params: tuple[Any, ...] = ()) -> Tuple[Any, ...]:
-    """Execute queries on the database and return results if any"""
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute("PRAGMA foreign_keys = ON;")
+def get_prod_conn(db_path: str = PROD_DB_PATH) -> sqlite3.Connection:
     try: 
+        conn: sqlite3.Connection = sqlite3.connect(db_path)
+    except ConnectionError as e:
+        logging.debug('There has been a Connection error while connecting to the quantsim database, Error: %s', e)
+        raise
+    else:
+        logging.info('Successfully connected to thhe database. Now, returning the connection object!')
+        return conn
+
+def execute_query(conn: sqlite3.Connection, query: str, params: tuple[Any, ...] = ()) -> Tuple[Any, ...]:
+    """
+    Execute queries on an existing connection object.
+    It commits non-SELECT queries and fetches all results for SELECT statements
+    """
+    try: 
+        cursor = conn.cursor()
         cursor.execute(query, params)
-        #checking if the query is a select type query
         if query.strip().upper().startswith('SELECT'):
             results = cursor.fetchall()
-            return results if results else tuple()
-        else:
+            return tuple(results)
+        else: #Involves a Write / Schema operation - so, commiting the change is necessary
             conn.commit()
             return tuple()
     except sqlite3.Error as e:
-        print(f"Database error: {e}")
-        logging.debug('There has been a database error while query execution: %s', e)
-        raise #re-reising exception after printing and logging 
-    finally:
-        conn.close()
+        logging.debug('Database error duting query execution: %s', e)
+        raise
+
+
+
 
 def insert_bulk_data(db_path: str, records: List[Tuple[Any, ...]]) -> int:
     """
