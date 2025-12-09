@@ -1,7 +1,8 @@
 from src.modules.analytics.returns_analyzer import (
     calculate_daily_returns_from_hardcoded_list,
     summarize_returns,
-    read_all_csv_data, calculate_daily_portfolio_returns
+    read_all_csv_data, calculate_daily_portfolio_returns,
+    calculate_daily_returns
 )
 from pathlib import Path
 import pandas as pd
@@ -10,8 +11,9 @@ import logging
 logging.basicConfig(filename='logs/main_file_logs.txt', level=logging.DEBUG,
                     format=' %(asctime)s -  %(levelname)s -  %(message)s')
 
-# We can perform analysis on hardcoded list values or fetch values from the CSV file for analysis. For now, focusing
-# on hardcoded list
+# We can perform analysis on fetch values from the CSV file for analysis. For now, loading
+# the CSV file all at once. Later, will create another feature which will use generator to load
+# CSV file in chunks if the dataset is large 
 
 def run_analyze(args):
     logging.debug('Entered the run analyze function block!')
@@ -20,7 +22,7 @@ def run_analyze(args):
     stock_csv_file_name = f'{stock_symbol}_id.csv'
 
     file_path = Path(stock_csv_file_path) / stock_csv_file_name
-
+    stock_csv_file_dataframe = read_all_csv_data(stock_symbol)
     logging.debug('The stock symbol is: %s', stock_symbol)
 
     if not file_path.is_file():
@@ -32,9 +34,8 @@ def run_analyze(args):
         print(summarize_returns(stock_closing_prices_series=stock_closing_price_for_testing_pandas_series, stock_name=stock_symbol))
         return
     
-    #print("CSV file found")
     logging.debug('Stock CSV File found in path. Starting the analysis')
     file_data = read_all_csv_data(stock_symbol=stock_symbol)
-    daily_portfolio_returns = calculate_daily_portfolio_returns(file_data)
-    print(summarize_returns(daily_portfolio_returns, stock_symbol))
+    result = summarize_returns(stock_csv_file_dataframe)
+    print(result)
     return

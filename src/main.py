@@ -13,7 +13,7 @@ logging.basicConfig(filename='logs/main_file_logs.txt', level=logging.DEBUG,
                     format=' %(asctime)s -  %(levelname)s -  %(message)s')
 
 def main():
-    print('Quantsim-Toolkit - running main pipeline...')
+    print('Quantsim-Toolkit - running main pipeline...\n')
     parser = build_parser()
     args = parser.parse_args()
 
