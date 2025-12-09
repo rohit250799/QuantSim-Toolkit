@@ -4,11 +4,14 @@ This file is responsible for analysing the stock value and calculating the daily
 import logging
 
 import pandas as pd
+import numpy as np
 
-logging.basicConfig(filename='QuantSim-Toolkit/logs/my_log_file.txt', level=logging.DEBUG, 
+logging.basicConfig(filename='logs/main_file_logs.txt', level=logging.DEBUG, 
                     format=' %(asctime)s -  %(levelname)s -  %(message)s')
 
-stock_name = input('Enter the stock name: ')
+def get_stock_name():
+    stock_name = input('Enter the stock name: ')
+    return stock_name
 
 
 def read_csv_stock_data_in_chunks(stock_symbol: str, chunksize: int = 10):
@@ -23,7 +26,7 @@ def read_csv_stock_data_in_chunks(stock_symbol: str, chunksize: int = 10):
     Pandas series with the timestamp values as the index and closing price of the stock as values
     """
     try:
-        file_path: str = f'QuantSim-Toolkit/src/data/{stock_symbol}_id.csv'
+        file_path: str = f'src/data/{stock_symbol}_id.csv'
     except FileNotFoundError:
         print('Invalid path! File not found there')
     else:
@@ -43,7 +46,7 @@ def read_csv_stock_data_in_chunks(stock_symbol: str, chunksize: int = 10):
            series = pd.Series(data=chunk['close'].values, index=chunk['timestamp'])
            yield series
 
-def read_all_csv_data(stock_symbol: str):
+def read_all_csv_data(stock_symbol: str) -> (pd.DataFrame | None):
     """
     Used to read data from a CSV file all at once
 
@@ -58,56 +61,62 @@ def read_all_csv_data(stock_symbol: str):
     A Pandas dataframe with the timestamp column value of the stock csv file as index and the closing price column as value
     """
     try:
-        file_path: str = f'QuantSim-Toolkit/src/data/{stock_symbol}_id.csv'
+        file_path: str = f'src/data/{stock_symbol}_id.csv'
     except FileNotFoundError:
         print('Invalid path! File not found there')
     else:
-        df = pd.read_csv(file_path, usecols=['timestamp', 'close'], parse_dates=['timestamp'], index_col=['timestamp'])
-        df = df.sort_values('timestamp')
-
+        df = pd.read_csv(file_path, usecols=['timestamp', 'close'], dtype=np.float32,  parse_dates=['timestamp'], index_col=['timestamp'])
+        df = df.sort_index()
         return df
-
     
-
-def calculate_daily_returns(stock_closing_prices_series: pd.Series):
+def perform_data_validation(df: pd.DataFrame):
     """
-    Calculates the daily arithmetic returns of a stock and returns it as a Pandas series
-
-    args:
-    stock_closing_price_series(pandas Series) - a numberical series in Pandas which has the date as index and
-    everyday closing prices of the stock as values
-
-    returns:
-    a Pandas numerical series which returns the daily percentage change of a stock from its closing price in
-    format- date: percentage_change
-
+    All data validation is performed here and then the clean data is used for all the calculations and analysis
     """
-    # if not stock_closing_prices_series:
-    #     raise FileNotFoundError('There is no file with that name!')
+    df_with_no_zero_or_lesser_prices = df[df['close'] > 0]
+    df_with_no_nan_or_inf = df_with_no_zero_or_lesser_prices[df_with_no_zero_or_lesser_prices['close'].notna() & np.isfinite(df['close'])]
 
-    # if stock_closing_prices_series.empty: 
-    #     raise ValueError('The series is empty!')
+    return df_with_no_nan_or_inf
+
     
-    # if len(stock_closing_prices_series) < 2:
-    #     raise ValueError('Calculations are not possible with a single value')
-    
-    my_generator = read_csv_stock_data_in_chunks(stock_name)
 
-    prev_last_price = None  # store last price of previous chunk
+# def calculate_daily_returns(stock_closing_prices_dataframe: pd.DataFrame, stock_name = None):
+#     """
+#     Calculates the daily arithmetic returns of a stock and returns it as a Pandas series
 
-    for chunk in my_generator:
-        returns = chunk.pct_change()
+#     args:
+#     stock_closing_price_series(pandas Series) - a numberical series in Pandas which has the date as index and
+#     everyday closing prices of the stock as values
 
-        # If previous chunk exists, compute return for first element
-        if prev_last_price is not None:
-            first_return = (chunk.iloc[0] - prev_last_price) / prev_last_price
-            returns.iloc[0] = first_return
+#     returns:
+#     a Pandas numerical series which returns the daily percentage change of a stock from its closing price in
+#     format- date: percentage_change
 
-        # Drop NaN for clean output (optional)
-        yield returns.dropna()
+#     """   
+#     #my_generator = read_csv_stock_data_in_chunks(stock_name)
+#     #file_data = read_all_csv_data(stock_name)
+#     #prev_last_price = None  # store last price of previous chunk
 
-         # Update previous last price
-        prev_last_price = chunk.iloc[-1]
+#     # for chunk in my_generator:
+#     #     returns = chunk.pct_change()
+
+#     #     # If previous chunk exists, compute return for first element
+#     #     if prev_last_price is not None:
+#     #         first_return = (chunk.iloc[0] - prev_last_price) / prev_last_price
+#     #         returns.iloc[0] = first_return
+
+#     #     # Drop NaN for clean output (optional)
+#     #     yield returns.dropna()
+
+#     #      # Update previous last price
+#     #     prev_last_price = chunk.iloc[-1]
+#     #stock_closing_prices_dataframe['daily return'] = stock_closing_prices_dataframe['close'].pct_change()
+#     #print(f'stock_closing_prices_dataframe is: {stock_closing_prices_dataframe}')
+#     return stock_closing_prices_dataframe.pct_change()
+
+def calculate_daily_returns(stock_closing_prices_dataframe: pd.DataFrame, stock_name = None):
+    daily_returns = stock_closing_prices_dataframe.pct_change()
+    return daily_returns
 
 def calculate_daily_returns_from_hardcoded_list(stock_closing_price_for_testing_pandas_series: pd.Series):
     """
@@ -127,7 +136,7 @@ def calculate_daily_returns_from_hardcoded_list(stock_closing_price_for_testing_
     
     return stock_closing_price_for_testing_pandas_series.pct_change()
 
-def calculate_daily_portfolio_returns(df_test: pd.DataFrame) -> pd.Series:
+def calculate_daily_portfolio_returns(validated_df: pd.DataFrame) -> pd.Series:
     """
     Calculates the daily portfolio total from the input data frame's closing prices and returns their daily percentage change
     
@@ -141,14 +150,14 @@ def calculate_daily_portfolio_returns(df_test: pd.DataFrame) -> pd.Series:
     Daily percentage change of the portfolio's total valuation across a time period
     """
     
-    df_returns = df_test.pct_change()
+    df_returns = validated_df.pct_change()
 
-    daily_average_returns = df_returns.mean(axis=1)
+    daily_average_returns = df_returns.dropna().mean(axis=1)
 
     print(f'daily_average_returns is: {daily_average_returns}')
     return daily_average_returns.pct_change()
 
-def summarize_returns(stock_closing_prices_series: pd.Series = read_all_csv_data(stock_symbol=stock_name)) -> dict:
+def summarize_returns(stock_closing_prices_dataframe: pd.DataFrame | None, stock_name: str = '') -> dict:
     """
     Summarizes the returns of a particular stock and returns the key performance indicators to the user
 
@@ -158,56 +167,28 @@ def summarize_returns(stock_closing_prices_series: pd.Series = read_all_csv_data
     Returns:
     A dictionary containing values of total returns, annualized volatility and mean daily return
     """
+    if stock_closing_prices_dataframe is None:
+        stock_symbol = get_stock_name()
+        stock_closing_prices_dataframe = perform_data_validation(read_all_csv_data(stock_symbol))
+    
+    stock_closing_prices_dataframe['daily_returns'] = calculate_daily_returns(stock_closing_prices_dataframe, stock_name)
+    print(stock_closing_prices_dataframe)
 
-    returns_output_dict: dict['str': float] = {}
+    df_valid = perform_data_validation(stock_closing_prices_dataframe)
+    daily_returns = df_valid['close'].pct_change()
 
-    daily_returns_from_stock_price = calculate_daily_returns_from_hardcoded_list(stock_closing_prices_series).round(decimals=4)
-    total_returns: float = daily_returns_from_stock_price.sum()
-    num_of_values_in_series: int = daily_returns_from_stock_price.size - 1
-    mean_daily_return = total_returns / num_of_values_in_series
-    returns_output_dict['mean_daily_return'] = mean_daily_return
-    daily_standard_deviation_in_stock_closing_prices = daily_returns_from_stock_price.std()
-    annualized_volatility: float = daily_standard_deviation_in_stock_closing_prices * (252 ** 0.5)
-    returns_output_dict['annualized_volatility'] = annualized_volatility
-    returns_output_dict['total_return'] = total_returns
+    # drops the first NaN during mean daily returns and other calculation
+    daily_returns = daily_returns.dropna()
 
-    return returns_output_dict
+    total_returns = daily_returns.sum()
+    mean_daily_return = daily_returns.mean()
+    annualized_volatility = daily_returns.std() * (252 ** 0.5)
 
-
-
-
-user_choice_for_testing = int(input('Enter 1 to test with CSV file values and 2 for testing with hardcoded ' \
-'price values and 3 for testing portfolio sum daily: '))
-
-df_test = pd.DataFrame({
-    'TCS': [100.0, 102.0, 101.0, 105.0, 104.0],
-    'INFY': [200.0, 198.0, 202.0, 205.0, 208.0],
-    'RELIANCE': [150.0, 152.0, 149.0, 155.0, 158.0]
-}, index=pd.date_range(start='2024-01-01', periods=5, freq='D'))
-
-
-if user_choice_for_testing == 1:
-    stock_name = input('Enter the stock name: ')
-    for daily_returns_series_chunk in calculate_daily_returns(stock_closing_prices_series=stock_name):
-        print(daily_returns_series_chunk)
-    print('_____')
-    print(summarize_returns())
-
-elif user_choice_for_testing == 2:
-    stock_closing_price_for_testing: list = [100, 102, 101, 105, 107]
-    stock_closing_price_for_testing_pandas_series: pd.Series = pd.Series(stock_closing_price_for_testing)
-    result = calculate_daily_returns_from_hardcoded_list(stock_closing_price_for_testing_pandas_series)
-    print(f'The result is: {result}')
-    print(summarize_returns(stock_closing_prices_series=stock_closing_price_for_testing_pandas_series))
-
-elif user_choice_for_testing == 3:
-    result = calculate_daily_portfolio_returns(df_test)
-    print(result)
-
-
-else: 
-    print('Invalid choice')
-    raise KeyError('Choose between 1 and 2!')
+    return {
+        "mean_daily_return": mean_daily_return,
+        "annualized_volatility": annualized_volatility,
+        "total_return": total_returns
+    }
 
 
 

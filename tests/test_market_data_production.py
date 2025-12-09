@@ -1,12 +1,14 @@
 from src.modules.stock_data_downloader import FinancialDataDownloader, Circuit_State
-from db.database import execute_query, symbol_table_creation_query, price_data_table_creation_query, list_tables
+from db.database import execute_query, symbol_table_creation_query, circuit_breaker_states_table_creation_query
 from src.custom_errors import RecordNotFoundError
+from helper_functions import make_open_circuit_breaker_state_table_row
 
 import logging
 import os
 import pytest 
 import sqlite3
-import tempfile
+#import tempfile
+from datetime import datetime, timedelta
 
 logging.basicConfig(filename='logs/pytest_logs.txt', level=logging.DEBUG,
                     format=' %(asctime)s -  %(levelname)s -  %(message)s')
@@ -23,6 +25,8 @@ def test_db_connection():
     yield conn
     # close connection after test, destroying the in-memory DB
     conn.close()
+
+
 
 class TestFinancialDataDownloader:
     """Testing all the functions of the financial data downloader class"""
@@ -56,6 +60,30 @@ class TestFinancialDataDownloader:
         logging.info('The symbol to be inserted is: TCS')
         insertion_query_fetch_result = execute_query(test_db_connection, "select * from my_new_symbol_table where symbol = ?", ('TCS', ))
         logging.debug('The insertion query fetch result is: %s', insertion_query_fetch_result)
+        assert insertion_query_fetch_result == ((1, 'TCS'), )
+
+    def test_api_calls_not_allowed(self, test_db_connection):
+        """
+        API calls are alloweed only when the state in the circuit breaker states table is Closed or Half-Open(single call). In this test, we will make sure that when the state
+        is open, no API calls are allowed. API calls will be allowed only if state is Closed or Half-Open
+        """
+        execute_query(test_db_connection, circuit_breaker_states_table_creation_query)
+        row = make_open_circuit_breaker_state_table_row()
+        execute_query(test_db_connection, "insert into circuit_breaker_states values(?, ?, ?, ?, ?, ?)", row)
+        logging.info('An open state record has been inserted into the db')
+        current_state_from_the_table = execute_query(test_db_connection, "select state from circuit_breaker_states where symbol_id = ? limit 1", (1, ))[0][0]
+        api_call_permission: bool = True if (current_state_from_the_table == 0 or current_state_from_the_table == 2) else False
+        assert api_call_permission == False
+        logging.info("Assertion correct: when the state is open, API calls are not allowed")
+
+        second_row = make_open_circuit_breaker_state_table_row(id=2, symbol_id=2, failure_count=1, last_fail_time=None, state=0, cooldown_end_time=None)
+        execute_query(test_db_connection, "insert into circuit_breaker_states values(?, ?, ?, ?, ?, ?)", second_row)
+        logging.info('A closed state record has been inserted in the db')
+        current_state_from_the_table = execute_query(test_db_connection, "select state from circuit_breaker_states where symbol_id = ? limit 1", (2, ))[0][0]
+        api_call_permission: bool = True if (current_state_from_the_table == 0 or current_state_from_the_table == 2) else False
+        assert api_call_permission == True
+        logging.info("Assertion correct: when the state is closed, API calls are allowed")
+
 
 
     
@@ -75,4 +103,6 @@ class TestFinancialDataDownloader:
     #     logging.debug('The created tables are: %s', created_tables_list)
     #     return
 
+#id INTEGER PRIMARY KEY, " \
+#"symbol_id INTEGER, failure_count INTEGER, last_fail_time TEXT, state INTEGER NOT NULL, cooldown_end_time TEXT DEFAULT NULL
     

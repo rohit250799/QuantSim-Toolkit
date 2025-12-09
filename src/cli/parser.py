@@ -1,0 +1,31 @@
+import argparse
+
+def build_parser():
+    parser = argparse.ArgumentParser(
+        prog="Quantsim Toolkit",
+        description="A Python-based quantitative simulation and analysis toolkit integrating probability simulations, stock return analysis, portfolio risk calculations, and Monte Carlo methods."
+    )
+
+    subparsers = parser.add_subparsers(dest='command', required=True)
+
+    #Analyze
+    analyze_parser = subparsers.add_parser("analyze", help="Analyze historical price data")
+    analyze_parser.add_argument("--symbol", required=True)
+    analyze_parser.add_argument("--exchange", default="BSE")
+
+    #Download
+    parser_downloader = subparsers.add_parser('download', help='Download required data in CSV format')
+    parser_downloader.add_argument('-symbol', '--stockSymbol', help='symbol of the stock', dest='symbol')
+    parser_downloader.add_argument('-exchange', '--stock_exchange', help='Stock exchange where the stock is traded', default='BSE', dest='exchange')
+
+    #simulate
+    parser_simulation = subparsers.add_parser('simulation', help='Probability simulation to simulate dice rolls, coin tosses etc')
+    parser_simulation.add_argument('-type', '--objectType', help='Type of object to use for simulation', dest='objectType', choices=[
+        'dice', 'coin', 'custom'
+        ], default='dice')
+    parser_simulation.add_argument('-multi', '--multipleDice', help='Specifies if multiple dice are used for the simulation', action='store_true', dest='multiDice')
+    parser_simulation.add_argument('-dice', '--dicenumber', default=2, type=int, dest='diceNumber', help='number of dice to be used in the sim')
+    parser_simulation.add_argument('-sides', '--diceTotalSides', default=6, type=int, dest='diceTotalSides', help='Total sides of each dice')
+    parser_simulation.add_argument('-tries', '-totalTries', default=10, type=int, dest='totalTries', help='The number of tries in the simulation')
+
+    return parser
