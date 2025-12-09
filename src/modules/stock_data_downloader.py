@@ -74,7 +74,7 @@ class FinancialDataDownloader:
         self.base_url: str = 'https://www.alphavantage.co'
         self.test_db_connection = get_prod_conn()
 
-    def _download_historical_stock_data(self, stock_symbol: str, market: str = 'BSE', timeframe: str = 'id', save_path: str = 'data/') -> str:
+    def download_historical_stock_data(self, stock_symbol: str, market: str = 'BSE', timeframe: str = 'id', save_path: str = 'src/data/') -> str:
         """
         Download stock data in CSV format    
         """
@@ -121,7 +121,6 @@ class FinancialDataDownloader:
                 logging.debug("After inserting record in circuit breaker states table, the record is: %s", execute_query(self.test_db_connection, "select * from circuit_breaker_states where symbol_id = ?", (symbol_id, )))
                 current_symbol_state, cooldown_end_time = execute_query(self.test_db_connection, "select state, cooldown_end_time from circuit_breaker_states where symbol_id = ?", (symbol_id, ))
             else:
-                #current_symbol_state, cooldown_end_time = execute_query(DB_PATH, "select state, cooldown_end_time from circuit_breaker_states where symbol_id = ? limit 1 order by last_fail_time desc", (symbol_id, ))
                 current_symbol_state, cooldown_end_time = execute_query(self.test_db_connection, "select state, cooldown_end_time from circuit_breaker_states where symbol_id = ? order by last_fail_time desc limit 1", (symbol_id, ))[0]
 
                 logging.debug('The symbol state is: %s and cooldown end time is: %s', current_symbol_state, cooldown_end_time)
