@@ -51,20 +51,18 @@ Activate the virtual environment first by using **source .venv/bin/activate** fr
 
 ![Download stock data](screenshots/download_stock_data.png)
 
-In this case, there are some things that you need to know. 
+In this case, there are some things that you need to know:
 
     a) Downloaded stock data will be in the CSV format
     b) To download the stock data, I have used Alpha Vantage API for this project, from where you can download data for free(to a certain limit). To get started with this, every user needs to have a API key from Alpha Vantage (which is free). You can visit this link and generate your own API key by [clicking here](https://www.alphavantage.co/support/#api-key)
     c) Once you get an API key, you have to store it in a .env file inside the modules/ directory. Store your API key there in the format: export API_KEY='A^5435NDD'
     d) In the above point, maintaining the format is very important in the .env file and there should be no space on either side of '='
 
-5. Using generators with chunksize to read large downloaded CSV file data and calculating the daily stock returns on each chunk. For now, you can simply choose to run the **returns_analyzer file in analytics directory** to calculate and return the daily percentage returns to the terminal. Terminal commands to do the same will be added soon. 
-
-![Calculate daily returns](screenshots/calculate_daily_returns.png)
+5. Using generators with chunksize to read large downloaded CSV file data and calculating the daily stock returns on each chunk. You can use the analyzer by running the command **python3 -m src.main analyze --symbol 'TCS'** to calculate and display the mean daily return, annualized volatility etc. on the terminal. Replace  'TCS' with any other stock symbol you like.  
 
     Now, the key performance indicators of a particular stock are also displayed after the analysis. 
 
-![Display key performance indicators](screenshots/key_performance_indicators.png)
+![Display key performance indicators](screenshots/analyze_stock.png)
 
 6. Now, the cumulative returns for the entire portfolio and for individual assets can be calculated for plotting it into line charts for easier understanding.
 Simply navigate to the **portfolio_analyzer.py** file and run it in the terminal. Enter number 2 as input and then the chart will be displayed on the screen and will be saved in the plots directory as well. 
