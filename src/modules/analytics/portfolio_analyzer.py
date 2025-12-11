@@ -2,9 +2,9 @@ import logging
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from returns_analyzer import calculate_daily_portfolio_returns
+from src.modules.analytics.returns_analyzer import calculate_daily_portfolio_returns, read_all_csv_data, perform_data_validation
 
-logging.basicConfig(filename='QuantSim-Toolkit/logs/my_log_file.txt', level=logging.DEBUG, 
+logging.basicConfig(filename='logs/main_file_logs.txt', level=logging.DEBUG, 
                     format=' %(asctime)s -  %(levelname)s -  %(message)s')
 
 def calculate_portfolio_returns(df_prices: pd.DataFrame) -> pd.Series: 
@@ -22,7 +22,7 @@ def calculate_portfolio_returns(df_prices: pd.DataFrame) -> pd.Series:
     print(type(daily_returns_dataframe))
     return daily_returns_dataframe
 
-def plot_cumulative_returns(df_prices: pd.DataFrame):
+def plot_cumulative_returns(df_prices: pd.DataFrame) -> None:
     """
     Used to plot the cumulative returns of the entire portfolio vs individual stocks in the portfolio over a period of time
 
@@ -60,5 +60,6 @@ df_test = pd.DataFrame({
     'RELIANCE': [150.0, 152.0, 149.0, 155.0, 158.0]
 }, index=pd.date_range(start='2024-01-01', periods=5, freq='D'))
 
-result = plot_cumulative_returns(df_test)
-print(result)
+# result = plot_cumulative_returns(df_test)
+# print(result)
+# return

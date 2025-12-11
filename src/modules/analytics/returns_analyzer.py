@@ -2,6 +2,8 @@
 This file is responsible for analysing the stock value and calculating the daily returns from it
 """
 import logging
+from collections.abc import Generator
+from typing import Any, Dict, cast
 
 import pandas as pd
 import numpy as np
@@ -9,12 +11,12 @@ import numpy as np
 logging.basicConfig(filename='logs/main_file_logs.txt', level=logging.DEBUG, 
                     format=' %(asctime)s -  %(levelname)s -  %(message)s')
 
-def get_stock_name():
+def get_stock_name() -> str:
     stock_name = input('Enter the stock name: ')
     return stock_name
 
 
-def read_csv_stock_data_in_chunks(stock_symbol: str, chunksize: int = 10):
+def read_csv_stock_data_in_chunks(stock_symbol: str, chunksize: int = 10) -> Generator[Any, Any, Any]:
     """
     A generator to read stock data from the csv file in chunks and reorganises that in Series format with timestamp as index
 
@@ -46,7 +48,7 @@ def read_csv_stock_data_in_chunks(stock_symbol: str, chunksize: int = 10):
            series = pd.Series(data=chunk['close'].values, index=chunk['timestamp'])
            yield series
 
-def read_all_csv_data(stock_symbol: str) -> (pd.DataFrame | None):
+def read_all_csv_data(stock_symbol: str) -> pd.DataFrame:
     """
     Used to read data from a CSV file all at once
 
@@ -64,19 +66,33 @@ def read_all_csv_data(stock_symbol: str) -> (pd.DataFrame | None):
         file_path: str = f'src/data/{stock_symbol}_id.csv'
     except FileNotFoundError:
         print('Invalid path! File not found there')
+        raise
     else:
         df = pd.read_csv(file_path, usecols=['timestamp', 'close'], dtype=np.float32,  parse_dates=['timestamp'], index_col=['timestamp'])
         df = df.sort_index()
         return df
     
-def perform_data_validation(df: pd.DataFrame):
+def perform_data_validation(df: pd.DataFrame) -> pd.Series:
     """
     All data validation is performed here and then the clean data is used for all the calculations and analysis
     """
-    df_with_no_zero_or_lesser_prices = df[df['close'] > 0]
-    df_with_no_nan_or_inf = df_with_no_zero_or_lesser_prices[df_with_no_zero_or_lesser_prices['close'].notna() & np.isfinite(df['close'])]
 
-    return df_with_no_nan_or_inf
+    if "close" not in df.columns:
+        raise KeyError("Input DataFrame must contain a 'close' column")
+
+    cleaned = df.loc[
+        (df["close"] > 0)
+        & (df["close"].notna())
+        & (np.isfinite(df["close"]))
+    , "close"]
+
+    if cleaned.empty:
+        raise ArithmeticError("No valid closing prices available after filtering")
+
+    # Ensuring Series returned (not DataFrame)
+    cleaned = cleaned.astype(float)
+
+    return cast(pd.Series, cleaned)
 
     
 
@@ -114,27 +130,38 @@ def perform_data_validation(df: pd.DataFrame):
 #     #print(f'stock_closing_prices_dataframe is: {stock_closing_prices_dataframe}')
 #     return stock_closing_prices_dataframe.pct_change()
 
-def calculate_daily_returns(stock_closing_prices_dataframe: pd.DataFrame, stock_name = None):
-    daily_returns = stock_closing_prices_dataframe.pct_change()
+
+def calculate_daily_returns(close: pd.Series) -> pd.Series:
+    """
+    Compute daily percentage returns from a validated closing-price Series.
+    """
+
+    daily_returns = close.pct_change()
+
+    # If entire Series NaN -> invalid input
+    if daily_returns.isna().all():
+        raise ArithmeticError("Daily returns could not be computed")
+
     return daily_returns
 
-def calculate_daily_returns_from_hardcoded_list(stock_closing_price_for_testing_pandas_series: pd.Series):
-    """
-    Accepts a pandas series of values and returns their daily percentage change
 
-    Args:
-    stock_closing_price_for_testing_pandas_series(pandas Series) - Closing prices of a stock 
+# def calculate_daily_returns_from_hardcoded_list(stock_closing_price_for_testing_pandas_series: pd.Series) -> pd.Series[float]:
+#     """
+#     Accepts a pandas series of values and returns their daily percentage change
 
-    Returns: 
-    The daily percentage change of the stock
-    """
-    if stock_closing_price_for_testing_pandas_series.empty:
-        raise ValueError('The pandas series is empty!')
+#     Args:
+#     stock_closing_price_for_testing_pandas_series(pandas Series) - Closing prices of a stock 
+
+#     Returns: 
+#     The daily percentage change of the stock
+#     """
+#     if stock_closing_price_for_testing_pandas_series.empty:
+#         raise ValueError('The pandas series is empty!')
     
-    if stock_closing_price_for_testing_pandas_series.size < 2:
-        raise ValueError('Calculations not possible with single value')
+#     if stock_closing_price_for_testing_pandas_series.size < 2:
+#         raise ValueError('Calculations not possible with single value')
     
-    return stock_closing_price_for_testing_pandas_series.pct_change()
+#     return stock_closing_price_for_testing_pandas_series.pct_change()
 
 def calculate_daily_portfolio_returns(validated_df: pd.DataFrame) -> pd.Series:
     """
@@ -157,38 +184,70 @@ def calculate_daily_portfolio_returns(validated_df: pd.DataFrame) -> pd.Series:
     print(f'daily_average_returns is: {daily_average_returns}')
     return daily_average_returns.pct_change()
 
-def summarize_returns(stock_closing_prices_dataframe: pd.DataFrame | None, stock_name: str = '') -> dict:
-    """
-    Summarizes the returns of a particular stock and returns the key performance indicators to the user
+# def summarize_returns(stock_closing_prices_dataframe: pd.Series | None, stock_name: str = '') -> Dict[str, int]:
+#     """
+#     Summarizes the returns of a particular stock and returns the key performance indicators to the user
 
-    Args:
-    stock_closing_prices_series(pandas series) - a Pandas series with date_timestamp as the index and closing prices as values
+#     Args:
+#     stock_closing_prices_series(pandas series) - a Pandas series with date_timestamp as the index and closing prices as values
+
+#     Returns:
+#     A dictionary containing values of total returns, annualized volatility and mean daily return
+#     """
+#     csv_dataframe = read_all_csv_data(stock_name)            
+#     clean_data = perform_data_validation(csv_dataframe)
+#     close = csv_dataframe['close']
+    
+#     clean_data['daily_returns'] = calculate_daily_returns(close, stock_name)
+#     daily_returns = clean_data['daily_returns'].dropna()
+
+#     total_returns = daily_returns.sum()
+#     mean_daily_return = daily_returns.mean()
+#     annualized_volatility = daily_returns.std() * (252 ** 0.5)
+
+#     return {
+#         "mean_daily_return": mean_daily_return,
+#         "annualized_volatility": annualized_volatility,
+#         "total_return": total_returns
+#     }
+
+def build_price_frame(close_series: pd.Series) -> pd.DataFrame:
+    """
+    Construct a clean price DataFrame with closing prices and daily_returns columns.
+    Index: timestamp
+    """
+    prices = pd.DataFrame({"close": close_series})
+    prices["daily_returns"] = prices["close"].pct_change()
+
+    return prices
+
+def summarize_returns(raw_df: pd.DataFrame, stock_name: str = "") -> Dict[str, str]:
+    """
+    Summarize performance metrics for a stock based on closing price.
 
     Returns:
-    A dictionary containing values of total returns, annualized volatility and mean daily return
+        mean_daily_return
+        annualized_volatility
+        total_return
     """
-    if stock_closing_prices_dataframe is None:
-        stock_symbol = get_stock_name()
-        stock_closing_prices_dataframe = perform_data_validation(read_all_csv_data(stock_symbol))
-    
-    stock_closing_prices_dataframe['daily_returns'] = calculate_daily_returns(stock_closing_prices_dataframe, stock_name)
-    print(stock_closing_prices_dataframe)
 
-    df_valid = perform_data_validation(stock_closing_prices_dataframe)
-    daily_returns = df_valid['close'].pct_change()
+    # 1. Validate and extract the closing-price Series
+    close_series = perform_data_validation(raw_df)
 
-    # drops the first NaN during mean daily returns and other calculation
-    daily_returns = daily_returns.dropna()
+    prices = build_price_frame(close_series)
+    print(prices)
 
-    total_returns = daily_returns.sum()
+    daily_returns = prices["daily_returns"].dropna()
+
+    # 3. Compute metrics
+    total_return = daily_returns.sum()
     mean_daily_return = daily_returns.mean()
-    annualized_volatility = daily_returns.std() * (252 ** 0.5)
+    annualized_volatility = daily_returns.std() * np.sqrt(252)
 
     return {
-        "mean_daily_return": mean_daily_return,
-        "annualized_volatility": annualized_volatility,
-        "total_return": total_returns
+        "mean_daily_return": f"{mean_daily_return * 100:.4f}%",
+        "annualized_volatility": f"{annualized_volatility * 100:.4f}%",
+        "total_return": f"{total_return * 100:.4f}%",
     }
-
 
 

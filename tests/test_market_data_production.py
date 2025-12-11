@@ -1,8 +1,10 @@
 from src.modules.stock_data_downloader import FinancialDataDownloader, Circuit_State
 from db.database import execute_query, symbol_table_creation_query, circuit_breaker_states_table_creation_query
 from src.custom_errors import RecordNotFoundError
-from helper_functions import make_open_circuit_breaker_state_table_row
+from helper_functions import make_open_circuit_breaker_state_table_row, can_call_api
 
+from collections.abc import Generator
+from typing import Any
 import logging
 import os
 import pytest 
@@ -14,7 +16,7 @@ logging.basicConfig(filename='logs/pytest_logs.txt', level=logging.DEBUG,
                     format=' %(asctime)s -  %(levelname)s -  %(message)s')
 
 @pytest.fixture(scope="function")
-def test_db_connection():
+def test_db_connection() -> Generator[Any, Any, Any]:
     """
     Each test gets a fresh transaction and rolls it back.
     Pure sqlite3 and standard library only.
@@ -44,7 +46,7 @@ class TestFinancialDataDownloader:
 
         logging.info('The assertions made on creation of financial data downloader are all correct - the api key and base url are all rightly fetched')
 
-    def test_table_creation(self, test_db_connection):
+    def test_table_creation(self, test_db_connection: Any) -> None:
         """Test the creation of a new table in the in-memory database while performing unit tests"""
         table_name = 'my_new_symbol_table'
         execute_query(test_db_connection, f"CREATE TABLE {table_name} (id INTEGER PRIMARY KEY, symbol TEXT);")
@@ -52,7 +54,7 @@ class TestFinancialDataDownloader:
         logging.debug('The newly created tables from test table creation function are: %s', execute_query(test_db_connection, "SELECT name FROM sqlite_master WHERE type='table';"))
         assert('my_new_symbol_table',) in created_tables
 
-    def test_data_insertion(self, test_db_connection):
+    def test_data_insertion(self, test_db_connection: Any) -> None:
         """Tests the insertion of data in the newly created table""" 
         table_name = 'my_new_symbol_table'
         execute_query(test_db_connection, f"CREATE TABLE {table_name} (id INTEGER PRIMARY KEY, symbol TEXT);")
@@ -62,28 +64,63 @@ class TestFinancialDataDownloader:
         logging.debug('The insertion query fetch result is: %s', insertion_query_fetch_result)
         assert insertion_query_fetch_result == ((1, 'TCS'), )
 
-    def test_api_calls_not_allowed(self, test_db_connection):
+    def test_api_calls_not_allowed(self, test_db_connection: Any) -> None:
         """
         API calls are alloweed only when the state in the circuit breaker states table is Closed or Half-Open(single call). In this test, we will make sure that when the state
         is open, no API calls are allowed. API calls will be allowed only if state is Closed or Half-Open
         """
         execute_query(test_db_connection, circuit_breaker_states_table_creation_query)
-        row = make_open_circuit_breaker_state_table_row()
-        execute_query(test_db_connection, "insert into circuit_breaker_states values(?, ?, ?, ?, ?, ?)", row)
-        logging.info('An open state record has been inserted into the db')
-        current_state_from_the_table = execute_query(test_db_connection, "select state from circuit_breaker_states where symbol_id = ? limit 1", (1, ))[0][0]
-        api_call_permission: bool = True if (current_state_from_the_table == 0 or current_state_from_the_table == 2) else False
-        assert api_call_permission == False
-        logging.info("Assertion correct: when the state is open, API calls are not allowed")
 
-        second_row = make_open_circuit_breaker_state_table_row(id=2, symbol_id=2, failure_count=1, last_fail_time=None, state=0, cooldown_end_time=None)
-        execute_query(test_db_connection, "insert into circuit_breaker_states values(?, ?, ?, ?, ?, ?)", second_row)
-        logging.info('A closed state record has been inserted in the db')
-        current_state_from_the_table = execute_query(test_db_connection, "select state from circuit_breaker_states where symbol_id = ? limit 1", (2, ))[0][0]
-        api_call_permission: bool = True if (current_state_from_the_table == 0 or current_state_from_the_table == 2) else False
-        assert api_call_permission == True
-        logging.info("Assertion correct: when the state is closed, API calls are allowed")
+        open_row = make_open_circuit_breaker_state_table_row(
+            id=1, symbol_id=1, failure_count=3, last_fail_time=None,
+            state=1, 
+            cooldown_end_time=None
+        )
 
+        execute_query(
+            test_db_connection,
+            "INSERT INTO circuit_breaker_states VALUES (?, ?, ?, ?, ?, ?)",
+            open_row
+        )
+
+        state = execute_query(
+            test_db_connection,
+            "SELECT state FROM circuit_breaker_states WHERE symbol_id = ? LIMIT 1",
+            (1,)
+        )[0][0]
+
+        # OPEN state → API must NOT be allowed
+        assert can_call_api(state) is False
+        logging.info("Assertion correct: OPEN state (1) → API calls NOT allowed")
+
+        closed_row = make_open_circuit_breaker_state_table_row(
+            id=2, symbol_id=2, failure_count=0, last_fail_time=None,
+            state=0, 
+            cooldown_end_time=None
+        )
+
+        execute_query(
+            test_db_connection,
+            "INSERT INTO circuit_breaker_states VALUES (?, ?, ?, ?, ?, ?)",
+            closed_row
+        )
+
+        state = execute_query(
+            test_db_connection,
+            "SELECT state FROM circuit_breaker_states WHERE symbol_id = ? LIMIT 1",
+            (2,)
+        )[0][0]
+
+        assert can_call_api(state) is True
+        logging.info("Assertion correct: CLOSED state (0) → API calls allowed")
+
+
+
+    # def test_circuit_state_updation_based_on_api_response(self, test_db_connection):
+    #     """
+        
+    #     """
+    #     pass
 
 
     
@@ -95,14 +132,4 @@ class TestFinancialDataDownloader:
     # def missing_symbol(self):
     #     return 'B'
     
-    # def test_insert_order(self, test_db_path):
-    #     execute_query(test_db_path, symbol_table_creation_query)
-    #     #created_tables_list = execute_query(test_db_path, list_tables)
-    #     created_tables_list = list_tables(test_db_path)
-    #     #symbols_table_fetching_data = execute_query(test_db_path, "select * from symbols;")
-    #     logging.debug('The created tables are: %s', created_tables_list)
-    #     return
-
-#id INTEGER PRIMARY KEY, " \
-#"symbol_id INTEGER, failure_count INTEGER, last_fail_time TEXT, state INTEGER NOT NULL, cooldown_end_time TEXT DEFAULT NULL
     

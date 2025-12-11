@@ -2,69 +2,15 @@ import logging
 import random
 import math
 
-logging.basicConfig(filename='QuantSim-Toolkit/logs/my_log_file.txt', level=logging.DEBUG, 
-                    format=' %(asctime)s -  %(levelname)s -  %(message)s')
+from typing import Dict, List, Tuple
+from dataclasses import dataclass
 
-def simulate_probability_of_single_dice(total_tries: int, object_type: str = 'dice') -> dict:
+@dataclass
+class Frequency:
+    connt: int
+    probability: float = 0.0
 
-    """
-    Simulates the probability of a single dice roll for times provided by the user
-
-    Args:
-    total_tries(int): Number of tries that can be made in the simulation
-
-    Returns:
-    The probability based on the above args
-    """
-    
-    if total_tries <= 0:
-        raise ValueError('Total tries should be >= 1')
-        
-    if object_type not in {'dice', 'coin'}: 
-        raise ValueError('Object type should be dice or coin')
-    
-    if object_type == 'dice':
-
-        frequency_storage_dict: dict = {
-            1: [0,0],
-            2: [0,0],
-            3: [0,0],
-            4: [0,0],
-            5: [0,0],
-            6: [0,0]
-        }
-        
-
-        for i in range(total_tries):
-            current_number: int = random.randint(1, 6)
-            frequency_storage_dict[current_number][0] += 1
-
-        for i in frequency_storage_dict.items():
-            if i[1][0] == 0: 
-                continue
-            i[1][1] = i[1][0] / total_tries
-
-    else:
-
-        frequency_storage_dict: dict = {
-            'Heads': [0,0],
-            'Tails': [0,0]
-        }
-
-        possible_results = ['Heads', 'Tails']
-
-        for i in range(total_tries):
-            current_result: str = random.choice(possible_results)
-            frequency_storage_dict[current_result][0] += 1
-
-        for i in frequency_storage_dict.items():
-            if i[1][0] == 0: 
-                continue
-            i[1][1] = i[1][0] / total_tries
-
-    return frequency_storage_dict
-
-def display_distribution_table(frequency_storage_dict: dict, multi_dice: bool = False) -> None:
+def display_distribution_table(frequency_storage_dict: Dict[int, List[float]], multi_dice: bool = False) -> None:
     """
     Displays the distribution table with different table on the terminal
     """
@@ -78,7 +24,7 @@ def display_distribution_table(frequency_storage_dict: dict, multi_dice: bool = 
         print(f'\n The standard deviation from the distribution table is: {math.sqrt(calculate_variance_of_data(frequency_storage_dict))}')
     return
 
-def display_multiple_dice_simulation_parameters(dice_number: int = 2, sides_per_dice: int = 6, total_rolls: int = 1000):
+def display_multiple_dice_simulation_parameters(dice_number: int = 2, sides_per_dice: int = 6, total_rolls: int = 1000) -> Dict[int, List[float]]:
 
     """
     Simulates the probability of multiple dice rolls and displays the distribution of sums with summary stats
@@ -105,37 +51,36 @@ def display_multiple_dice_simulation_parameters(dice_number: int = 2, sides_per_
     if total_rolls <= 0: 
         raise ValueError('There should at least be 1 dice roll in the simulation')
     
-    if dice_number < 0 or dice_number > 4: 
-        raise ValueError('Choose number of dice between 1 and 4')
+    if not (1 <= dice_number <= 4):
+        raise ValueError("dice_number must be between 1 and 4.")
     
-    if sides_per_dice < 1 or sides_per_dice > 10: 
-        raise ValueError('Entered incorrect value for sides per dice. Enter value between 1 and 10')
+    if not (1 <= sides_per_dice <= 10):
+        raise ValueError("sides_per_dice must be between 1 and 10.")
     
     total_sum_possible: range = range(dice_number, dice_number * sides_per_dice + 1)
 
-    frequency_storage_dict: dict = {}
+    # Dict: sum_value → [count, probability]
+    frequency_storage_dict: Dict[int, List[float]] = {
+        outcome: [0.0, 0.0] for outcome in total_sum_possible
+    }
 
-    dice_roll_results: list = []
-
-    for i in total_sum_possible:
-        key: int = i
-        value_list: list = [0, 0]
-        frequency_storage_dict[key] = value_list
-
-    for i in range(total_rolls):
+    # to run simulation
+    for _ in range(total_rolls):
         dice_values = [random.randint(1, sides_per_dice) for _ in range(dice_number)]
-        total: int = sum(dice_values)
-        dice_roll_results.append((dice_values, total))
-        frequency_storage_dict[total][0] += 1
+        total_value = sum(dice_values)
 
-    for i in frequency_storage_dict.items():
-        if i[1][0] == 0: 
+        # Incrementing count
+        frequency_storage_dict[total_value][0] += 1.0
+
+    # Calculating probabilities
+    for sum_value, pair in frequency_storage_dict.items():
+        count = pair[0]  # first element is count
+        if count == 0:
             continue
-        i[1][1] = i[1][0] / total_rolls
-
+        pair[1] = count / total_rolls
     return frequency_storage_dict
 
-def calculate_expected_value_in_multi_dice_roll(frequency_storage_dict: dict) -> float:
+def calculate_expected_value_in_multi_dice_roll(frequency_storage_dict: Dict[int, List[float]]) -> float:
     """
     Returns the expected value from the distribution table 
     """
@@ -150,15 +95,15 @@ def calculate_expected_value_in_multi_dice_roll(frequency_storage_dict: dict) ->
 
     return current_sum
         
-def calculate_variance_of_data(frequency_storage_dict: dict):
+def calculate_variance_of_data(frequency_storage_dict: Dict[int, List[float]]) -> float:
     """
-    Returns the variance of data points in the given dataset
+    Returns the variance of data points in the given dataset and return it 
     """
 
     total_data_points: int = len(frequency_storage_dict)
-    data_points: list = list(frequency_storage_dict.keys())
-    probability_values: list = list(frequency_storage_dict.values())
-    data_point_difference_from_mean: list = [0] * len(data_points)
+    data_points: List[int] = list(frequency_storage_dict.keys())
+    probability_values: List[List[float]] = list(frequency_storage_dict.values())
+    data_point_difference_from_mean: List[float] = [0] * len(data_points)
 
     data_points_sum = 0
 
