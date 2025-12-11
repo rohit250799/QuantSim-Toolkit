@@ -122,12 +122,6 @@ jobs:
           uv pip install bandit || true
           uv run bandit -r . -ll 2>&1 | grep -q "HIGH" && exit 1 || echo "No high severity issues"
 
-# on:
-#   push:
-#     branches: [ "master" ]
-#   pull_request:
-#     branches: [ "master" ]
-
 # jobs:
 #   test:
 #     runs-on: ubuntu-latest
