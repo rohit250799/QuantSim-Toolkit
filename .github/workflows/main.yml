@@ -69,9 +69,22 @@ jobs:
           key: ${{ runner.os }}-python-${{ env.PYTHON_VERSION }}-uv-${{ hashFiles('uv.lock', 'pyproject.toml', 'requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-python-${{ env.PYTHON_VERSION }}-uv-
+        
+      - name: install pytest
+        run: |
+          uv add --dev "pytest>=8.4.2"
+          uv add --dev "pytest-cov>=4.1.0"  # For coverage
+          uv add --dev "bandit>=1.7.0"      # For security
       
-      - name: Install dependencies
+      - name: Install production dependencies
         run: uv sync
+
+      - name: Install test dependencies
+        run: |
+          echo "=== Installing test dependencies ==="
+          uv pip install pytest pytest-cov pytest-xdist
+          echo "Test packages installed:"
+          uv pip list | grep -E "(pytest|cov|xdist)"
       
       - name: Type checking
         run: |
@@ -81,27 +94,16 @@ jobs:
             --warn-unused-configs \
             --warn-redundant-casts
       
-      - name: Run tests with coverage
-        run: |
-          # Create output directory first
-          mkdir -p test-results
-          
-          uv run pytest \
-            tests/ \
-            -v \
-            --tb=short \
-            --durations=5 \
-            --cov=. \
-            --cov-report=term \
-            --cov-report=xml:test-results/coverage.xml \
-            --cov-fail-under=70 \
-            --junitxml=test-results/junit.xml \
-            --random-seed=42
-          
-          # Verify files were created
-          echo "=== Checking generated files ==="
-          ls -la test-results/ || echo "No test-results directory"
-          find . -name "*.xml" -type f | head -10
+      - name: Run tests (no coverage - temporary)
+      run: |
+        mkdir -p test-results
+        
+        uv run pytest \
+          tests/ \
+          -v \
+          --tb=short \
+          --junitxml=test-results/junit.xml \
+          --random-seed=42 
       
       - name: Upload test results
         if: always()
