@@ -103,7 +103,6 @@ jobs:
             -v \
             --tb=short \
             --junitxml=test-results/junit.xml \
-            --random-seed=42
       
       - name: Upload test results
         if: always()
