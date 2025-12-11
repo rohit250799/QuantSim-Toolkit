@@ -82,27 +82,35 @@ jobs:
             --warn-redundant-casts
       
       - name: Run tests with coverage
-        timeout-minutes: 15
         run: |
-          echo "=== Running Tests ==="
+          # Create output directory first
+          mkdir -p test-results
+          
           uv run pytest \
+            tests/ \
             -v \
             --tb=short \
+            --durations=5 \
             --cov=. \
             --cov-report=term \
-            --cov-report=xml:coverage.xml \
+            --cov-report=xml:test-results/coverage.xml \
             --cov-fail-under=70 \
-            --junitxml=junit.xml \
-            --random-seed=42  # Deterministic for quantitative code
+            --junitxml=test-results/junit.xml \
+            --random-seed=42
+          
+          # Verify files were created
+          echo "=== Checking generated files ==="
+          ls -la test-results/ || echo "No test-results directory"
+          find . -name "*.xml" -type f | head -10
       
       - name: Upload test results
-        if: always()  # Upload even if tests fail
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-results
           path: |
-            junit.xml
-            coverage.xml
+            test-results/junit.xml
+            test-results/coverage.xml
           retention-days: 30
       
       - name: Quick security scan
