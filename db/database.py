@@ -2,17 +2,14 @@ from typing import List, Tuple, Any
 import os
 import sqlite3
 import logging
-from dotenv import load_dotenv
 from pathlib import Path
-#from config.config_manager import load_config
+from dotenv import load_dotenv
 
 load_dotenv()
 PROD_DB_PATH = "db/quantsim.db"
 
 logging.basicConfig(filename='logs/db_logs.txt', level=logging.DEBUG, 
                     format=' %(asctime)s -  %(levelname)s -  %(message)s')
-
-#load_config()
 
 def init_db(db_path: str = PROD_DB_PATH) -> None:
     """Initialize the database and create directories if necessary"""
@@ -94,17 +91,7 @@ def insert_bulk_data(db_path: str, records: List[Tuple[Any, ...]]) -> int:
     finally:
         conn.close()
     return records_inserted
-
-def create_table_and_insert_values() -> None:
-    "Function to test db integration by creating table and inserting values"
-    try:
-        init_db(db_path=PROD_DB_PATH)
-    except ConnectionError: 
-        print('There has been a problem connecting to the database')
-    else:
-        query: str = 'SELECT name FROM sqlite_master '
-        result = execute_query(PROD_DB_PATH, query)
-        print(result)    
+ 
 
 symbol_table_creation_query: str = "create table if not exists symbols (id integer primary key, ticker text unique not null, " \
 "company_name text, created_at text default CURRENT_TIMESTAMP);"

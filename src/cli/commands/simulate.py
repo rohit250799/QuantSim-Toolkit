@@ -1,6 +1,7 @@
+import argparse
 from src.modules.probability import display_distribution_table, display_multiple_dice_simulation_parameters
 
-def run_simulate(args):
+def run_simulate(args: argparse.Namespace) -> None:
     object_type = args.objectType
     multi_dice = args.multiDice
     dice_number = args.diceNumber

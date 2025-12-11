@@ -2,85 +2,201 @@ name: CI
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [master, dev]
   pull_request:
-    branches: [ "master" ]
+    branches: [master, dev]
+
+# Prevent concurrent runs
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false  # No cancelling, just queue
 
 jobs:
-  test:
+  build:
+    name: Build and Test
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.12.3"]
-
+    
+    env:
+      PYTHON_VERSION: "3.12.11"
+      UV_VERSION: "0.8.23"
+      UV_PYTHON_PREFERENCE: "only-managed"
+      # Optimization flags
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup UV
+        uses: astral-sh/setup-uv@v2
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      
+      - name: Install Python ${{ env.PYTHON_VERSION }}
+        run: uv python install ${{ env.PYTHON_VERSION }}
+      
+      - name: Verify exact Python version
+        run: |
+          echo "=== Version Verification ==="
+          echo "Expected Python: ${{ env.PYTHON_VERSION }}"
+          echo "Expected UV: ${{ env.UV_VERSION }}"
+          
+          # Verify UV version
+          UV_ACTUAL=$(uv --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          echo "UV Actual: $UV_ACTUAL"
+          
+          # CRITICAL: Verify exact Python version
+          PYTHON_ACTUAL=$(uv run python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')")
+          echo "Python Actual: $PYTHON_ACTUAL"
+          
+          if [ "$PYTHON_ACTUAL" != "${{ env.PYTHON_VERSION }}" ]; then
+            echo "CRITICAL: Python version mismatch!"
+            echo "Quantitative code requires EXACT Python version match"
+            echo "Different versions = Different numerical results"
+            exit 1
+          fi
+          
+          echo "All versions match exactly"
+      
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/uv
+            .venv
+          key: ${{ runner.os }}-python-${{ env.PYTHON_VERSION }}-uv-${{ hashFiles('uv.lock', 'pyproject.toml', 'requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-python-${{ env.PYTHON_VERSION }}-uv-
+        
+      - name: install pytest
+        run: |
+          uv add --dev "pytest>=8.4.2"
+          uv add --dev "pytest-cov>=4.1.0"  # For coverage
+          uv add --dev "bandit>=1.7.0"      # For security
+      
+      - name: Install production dependencies
+        run: uv sync
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v1
-      with:
-        version: "latest"
-
-    - name: Set up Python ${{ matrix.python-version }}
-      run: uv python install ${{ matrix.python-version }}
-
-    - name: Install dependencies
+      - name: Install test dependencies
+        run: |
+          echo "=== Installing test dependencies ==="
+          uv pip install pytest pytest-cov pytest-xdist
+          echo "Test packages installed:"
+          uv pip list | grep -E "(pytest|cov|xdist)"
+      
+      - name: Type checking
+        run: |
+          echo "=== Type Checking ==="
+          uv run mypy . \
+            --strict \
+            --warn-unused-configs \
+            --warn-redundant-casts
+      
+      - name: Run tests (no coverage - temporary)
       run: |
-        uv sync --all-extras --dev
+        mkdir -p test-results
+        
+        uv run pytest \
+          tests/ \
+          -v \
+          --tb=short \
+          --junitxml=test-results/junit.xml \
+          --random-seed=42 
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            test-results/junit.xml
+            test-results/coverage.xml
+          retention-days: 30
+      
+      - name: Quick security scan
+        run: |
+          echo "=== Security Check ==="
+          # Install bandit if not in dependencies
+          uv pip install bandit || true
+          uv run bandit -r . -ll 2>&1 | grep -q "HIGH" && exit 1 || echo "No high severity issues"
 
-    # - name: Run static type checking
-    #   run: |
-    #     uv run mypy src/ tests/ --config-file pyproject.toml
+# jobs:
+#   test:
+#     runs-on: ubuntu-latest
+#     strategy:
+#       matrix:
+#         python-version: ["3.12.11"]
 
-    # - name: Run linting
-    #   run: |
-    #     uv run ruff check src/ tests/ --config pyproject.toml
+#     steps:
+#     - name: Checkout code
+#       uses: actions/checkout@v4
 
-    # - name: Run tests
-    #   run: |
-    #     uv run pytest tests/ -v --cov=src --cov-report=xml
+#     - name: Install uv
+#       uses: astral-sh/setup-uv@v1
+#       with:
+#         version: "0.8.23"
 
-  security-scan:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+#     - name: Set up Python ${{ matrix.python-version }}
+#       run: uv python install ${{ matrix.python-version }}
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v1
+#     - name: Install dependencies
+#       run: |
+#         uv sync --all-extras --dev
 
-    - name: Install dependencies
-      run: uv sync --dev
+#     # - name: Run static type checking
+#     #   run: |
+#     #     uv run mypy src/ tests/ --config-file pyproject.toml
 
-    # - name: Run security audit
-    #   run: |
-    #     uvx pip-audit
+#     # - name: Run linting
+#     #   run: |
+#     #     uv run ruff check src/ tests/ --config pyproject.toml
 
-    # - name: Semgrep SAST scan
-    #   uses: returntocorp/semgrep-action@v1
-    #   with:
-    #     config: p/ci
+#     # - name: Run tests
+#     #   run: |
+#     #     uv run pytest tests/ -v --cov=src --cov-report=xml
 
-  # build-docs:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #   - name: Checkout code
-  #     uses: actions/checkout@v4
+#   security-scan:
+#     runs-on: ubuntu-latest
+#     steps:
+#     - name: Checkout code
+#       uses: actions/checkout@v4
 
-  #   - name: Install uv
-  #     uses: astral-sh/setup-uv@v1
+#     - name: Install uv
+#       uses: astral-sh/setup-uv@v1
 
-  #   - name: Install dependencies
-  #     run: uv sync --all-extras --dev
+#     - name: Install dependencies
+#       run: uv sync --dev
 
-  #   - name: Build documentation
-  #     run: |
-  #       uv run sphinx-build -b html docs/ docs/_build/
+#     # - name: Run security audit
+#     #   run: |
+#     #     uvx pip-audit
 
-  #   - name: Upload documentation
-  #     uses: actions/upload-artifact@v3
-  #     with:
-  #       name: documentation
-  #       path: docs/_build/
-  #       retention-days: 7
+#     # - name: Semgrep SAST scan
+#     #   uses: returntocorp/semgrep-action@v1
+#     #   with:
+#     #     config: p/ci
+
+#   # build-docs:
+#   #   runs-on: ubuntu-latest
+#   #   steps:
+#   #   - name: Checkout code
+#   #     uses: actions/checkout@v4
+
+#   #   - name: Install uv
+#   #     uses: astral-sh/setup-uv@v1
+
+#   #   - name: Install dependencies
+#   #     run: uv sync --all-extras --dev
+
+#   #   - name: Build documentation
+#   #     run: |
+#   #       uv run sphinx-build -b html docs/ docs/_build/
+
+#   #   - name: Upload documentation
+#   #     uses: actions/upload-artifact@v3
+#   #     with:
+#   #       name: documentation
+#   #       path: docs/_build/
+#   #       retention-days: 7

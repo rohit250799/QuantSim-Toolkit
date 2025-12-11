@@ -194,10 +194,15 @@ class FinancialDataDownloader:
         Returns:
         None. It's just used to update the circuit state
         """
-        get_symbol_id: Tuple[int, ...] = execute_query(self.test_db_connection, "select id from symbols where ticker = ?", (symbol, ))
-        symbol_id: int = int(get_symbol_id[0][0]) if get_symbol_id else 0
-        get_current_symbol_state: Tuple[int] = execute_query(self.test_db_connection, "select state from circuit_breaker_states where symbol_id = ?", (symbol_id, ))
-        current_state: int = int(get_current_symbol_state[0][0]) if get_current_symbol_state else 0 #current state is closed by default
+        #get_symbol_id: Tuple[int, ...] = execute_query(self.test_db_connection, "select id from symbols where ticker = ?", (symbol, ))
+        get_symbol_id: Tuple[Tuple[int, ...], ...] = execute_query(self.test_db_connection, "select id from symbols where ticker = ?", (symbol, ))
+        #symbol_id: int = int(get_symbol_id[0][0]) if get_symbol_id else 0
+        symbol_id: int = get_symbol_id[0][0] if get_symbol_id else 0
+        #get_current_symbol_state: Tuple[int] = execute_query(self.test_db_connection, "select state from circuit_breaker_states where symbol_id = ?", (symbol_id, ))
+        get_current_symbol_state: Tuple[Tuple[int, ...], ...] = execute_query(self.test_db_connection, "select state from circuit_breaker_states where symbol_id = ?", (symbol_id, ))
+        #current_state: int = int(get_current_symbol_state[0][0]) if get_current_symbol_state else 0 #current state is closed by default
+        current_state: int = get_current_symbol_state[0][0] if get_current_symbol_state else 0 #current state is closed by default
+
 
         if success:
             if symbol_id:
@@ -487,8 +492,8 @@ class FinancialDataDownloader:
 
 result_class = FinancialDataDownloader()
 
-# data = result_class.fetch_daily_data(symbol='TCS', market='BSE')
-# print(data)
+data = result_class.fetch_daily_data(symbol='TCS', market='BSE')
+print(data)
 #storing_data_result = result_class.process_and_store('TCS', data)
 #print(storing_data_result)
 #print(execute_query(DB_PATH, "update circuit_breaker_states set state = ? where symbol_id = ?", (Circuit_State.OPEN.value, 2)))
