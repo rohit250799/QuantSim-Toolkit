@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [master, dev]
 
-# Prevent concurrent runs
+# Prevents concurrent runs
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false  # No cancelling, just queue
@@ -70,11 +70,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-python-${{ env.PYTHON_VERSION }}-uv-
         
-      - name: install pytest
-        run: |
-          uv add --dev "pytest>=8.4.2"
-          uv add --dev "pytest-cov>=4.1.0"  # For coverage
-          uv add --dev "bandit>=1.7.0"      # For security
+      # - name: install pytest
+      #   run: |
+      #     uv add --dev "pytest>=8.4.2"
+      #     uv add --dev "pytest-cov>=4.1.0"  # For coverage
+      #     uv add --dev "bandit>=1.7.0"      # For security
       
       - name: Install production dependencies
         run: uv sync
@@ -82,7 +82,7 @@ jobs:
       - name: Install test dependencies
         run: |
           echo "=== Installing test dependencies ==="
-          uv pip install pytest pytest-cov pytest-xdist
+          uv pip install pytest pytest-cov pytest-xdist bandit
           echo "Test packages installed:"
           uv pip list | grep -E "(pytest|cov|xdist)"
       
@@ -95,15 +95,15 @@ jobs:
             --warn-redundant-casts
       
       - name: Run tests (no coverage - temporary)
-      run: |
-        mkdir -p test-results
-        
-        uv run pytest \
-          tests/ \
-          -v \
-          --tb=short \
-          --junitxml=test-results/junit.xml \
-          --random-seed=42 
+        run: |  
+          mkdir -p test-results
+          
+          uv run pytest \
+            tests/ \
+            -v \
+            --tb=short \
+            --junitxml=test-results/junit.xml \
+            --random-seed=42
       
       - name: Upload test results
         if: always()
@@ -112,11 +112,10 @@ jobs:
           name: test-results
           path: |
             test-results/junit.xml
-            test-results/coverage.xml
           retention-days: 30
       
       - name: Quick security scan
-        run: |
+        run: |  
           echo "=== Security Check ==="
           # Install bandit if not in dependencies
           uv pip install bandit || true
