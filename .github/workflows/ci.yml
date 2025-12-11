@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+    branches: [master, dev]
+  pull_request:
+    branches: [master, dev]
+
+# Prevent concurrent runs
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false  # Don't cancel, just queue
+
+jobs:
+  build:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    
+    env:
+      PYTHON_VERSION: "3.12.11"
+      UV_VERSION: "0.8.23"
+      UV_PYTHON_PREFERENCE: "only-managed"
+      # Optimization flags
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup UV
+        uses: astral-sh/setup-uv@v2
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      
+      - name: Install Python ${{ env.PYTHON_VERSION }}
+        run: uv python install ${{ env.PYTHON_VERSION }}
+      
+      - name: Verify exact Python version
+        run: |
+          echo "=== Version Verification ==="
+          echo "Expected Python: ${{ env.PYTHON_VERSION }}"
+          echo "Expected UV: ${{ env.UV_VERSION }}"
+          
+          # Verify UV version
+          UV_ACTUAL=$(uv --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          echo "UV Actual: $UV_ACTUAL"
+          
+          # CRITICAL: Verify exact Python version
+          PYTHON_ACTUAL=$(uv run python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')")
+          echo "Python Actual: $PYTHON_ACTUAL"
+          
+          if [ "$PYTHON_ACTUAL" != "${{ env.PYTHON_VERSION }}" ]; then
+            echo "CRITICAL: Python version mismatch!"
+            echo "Quantitative code requires EXACT Python version match"
+            echo "Different versions = Different numerical results"
+            exit 1
+          fi
+          
+          echo "All versions match exactly"
+      
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/uv
+            .venv
+          key: ${{ runner.os }}-python-${{ env.PYTHON_VERSION }}-uv-${{ hashFiles('uv.lock', 'pyproject.toml', 'requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-python-${{ env.PYTHON_VERSION }}-uv-
+      
+      - name: Install dependencies
+        run: uv sync
+      
+      - name: Type checking
+        run: |
+          echo "=== Type Checking ==="
+          uv run mypy . \
+            --strict \
+            --warn-unused-configs \
+            --warn-redundant-casts
+      
+      - name: Run tests with coverage
+        timeout-minutes: 15
+        run: |
+          echo "=== Running Tests ==="
+          uv run pytest \
+            -v \
+            --tb=short \
+            --cov=. \
+            --cov-report=term \
+            --cov-report=xml:coverage.xml \
+            --cov-fail-under=70 \
+            --junitxml=junit.xml \
+            --random-seed=42  # Deterministic for quantitative code
+      
+      - name: Upload test results
+        if: always()  # Upload even if tests fail
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results
+          path: |
+            junit.xml
+            coverage.xml
+          retention-days: 30
+      
+      - name: Quick security scan
+        run: |
+          echo "=== Security Check ==="
+          # Install bandit if not in dependencies
+          uv pip install bandit || true
+          uv run bandit -r . -ll 2>&1 | grep -q "HIGH" && exit 1 || echo "No high severity issues"
