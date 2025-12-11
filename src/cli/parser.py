@@ -1,6 +1,7 @@
 import argparse
 
-def build_parser():
+def build_parser() -> argparse.ArgumentParser:
+    """Returns an Argument parser to parse the arguments accepted from the command line"""
     parser = argparse.ArgumentParser(
         prog="Quantsim Toolkit",
         description="A Python-based quantitative simulation and analysis toolkit integrating probability simulations, stock return analysis, portfolio risk calculations, and Monte Carlo methods."
