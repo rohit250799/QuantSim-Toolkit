@@ -4,6 +4,7 @@ import os
 import logging
 import time
 from datetime import datetime, timedelta
+from sqlite3 import Connection
 import requests
 import pandas as pd
 
@@ -69,10 +70,10 @@ class Alert_Acknowledged(Enum):
     FALSE_POSITIVE = 3
 
 class FinancialDataDownloader:
-    def __init__(self) -> None:
+    def __init__(self, db_conn: None | Connection = None) -> None:
         self.api_key: str = os.environ.get('ALPHA_VANTAGE_API_KEY', 'key not found')
         self.base_url: str = 'https://www.alphavantage.co'
-        self.test_db_connection = get_prod_conn()
+        self.test_db_connection = db_conn if db_conn is not None else get_prod_conn()
 
     def download_historical_stock_data(self, stock_symbol: str, market: str = 'BSE', timeframe: str = 'id', save_path: str = 'src/data/') -> str:
         """
@@ -194,10 +195,15 @@ class FinancialDataDownloader:
         Returns:
         None. It's just used to update the circuit state
         """
-        get_symbol_id: Tuple[int, ...] = execute_query(self.test_db_connection, "select id from symbols where ticker = ?", (symbol, ))
-        symbol_id: int = int(get_symbol_id[0][0]) if get_symbol_id else 0
-        get_current_symbol_state: Tuple[int] = execute_query(self.test_db_connection, "select state from circuit_breaker_states where symbol_id = ?", (symbol_id, ))
-        current_state: int = int(get_current_symbol_state[0][0]) if get_current_symbol_state else 0 #current state is closed by default
+        #get_symbol_id: Tuple[int, ...] = execute_query(self.test_db_connection, "select id from symbols where ticker = ?", (symbol, ))
+        get_symbol_id: Tuple[Tuple[int, ...], ...] = execute_query(self.test_db_connection, "select id from symbols where ticker = ?", (symbol, ))
+        #symbol_id: int = int(get_symbol_id[0][0]) if get_symbol_id else 0
+        symbol_id: int = get_symbol_id[0][0] if get_symbol_id else 0
+        #get_current_symbol_state: Tuple[int] = execute_query(self.test_db_connection, "select state from circuit_breaker_states where symbol_id = ?", (symbol_id, ))
+        get_current_symbol_state: Tuple[Tuple[int, ...], ...] = execute_query(self.test_db_connection, "select state from circuit_breaker_states where symbol_id = ?", (symbol_id, ))
+        #current_state: int = int(get_current_symbol_state[0][0]) if get_current_symbol_state else 0 #current state is closed by default
+        current_state: int = get_current_symbol_state[0][0] if get_current_symbol_state else 0 #current state is closed by default
+
 
         if success:
             if symbol_id:
