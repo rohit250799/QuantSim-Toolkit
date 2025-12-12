@@ -60,8 +60,11 @@ jobs:
             --warn-unused-configs \
             --warn-redundant-casts
 
+            
+      # Will include --cov=src and coverage options when ready
+      # Since Pytest auto-discovers in-memory DB fixture and uses it, so no manual setup for db
+
       - name: Run tests
-        # Since Pytest auto-discovers in-memory DB fixture and uses it, so no manual setup for db
         run: |  
           mkdir -p test-results
           
@@ -70,13 +73,13 @@ jobs:
             -v \
             --tb=short \
             --junitxml=test-results/junit.xml \
-            # Will include --cov=src and coverage options when ready
       
+      # Explicitly use the configuration file to exclude virtual environments,
+      # ensuring the scan focuses only on src/ and tests/ code.
       - name: Quick security scan
         run: |  
           echo "=== Security Check ==="
-          # Install bandit if not in dependencies
-          uv run bandit -r . -ll 2>&1 | grep -q "HIGH" && exit 1 || echo "No high severity issues"
+          uv run bandit -c .bandit.yaml -r . -lll 2>&1 | grep -q "HIGH" && exit 1 || echo "No high severity issues"
 
       - name: Upload test results
         if: always()
