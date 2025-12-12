@@ -18,7 +18,7 @@ jobs:
     
     env:
       PYTHON_VERSION: "3.12.11"
-      UV_VERSION: "0.8.23"
+      #UV_VERSION: "0.8.23"
       UV_PYTHON_PREFERENCE: "only-managed"
       # Optimization flags
       PYTHONUNBUFFERED: "1"
@@ -28,13 +28,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      # Combining Python installation and UV setup in singel step for efficiency.
-      - name: Setup UV and Python ${{ env.PYTHON_VERSION }}
-        uses: astral-sh/setup-uv@v2
+      # Using standard GitHub action to acquire the Python interpreter
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
         with:
-          version: ${{ env.UV_VERSION }}
           python-version: ${{ env.PYTHON_VERSION }}
-          enable-cache: true
+          cache: 'pip' 
+
+      # Installing UV itself into the environment created above
+      - name: Install UV
+        run: pip install uv
       
       - name: Cache dependencies
         uses: actions/cache@v3

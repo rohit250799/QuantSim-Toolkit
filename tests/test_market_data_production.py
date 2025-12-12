@@ -17,12 +17,12 @@ logging.basicConfig(filename='logs/pytest_logs.txt', level=logging.DEBUG,
 class TestFinancialDataDownloader:
     """Testing all the functions of the financial data downloader class"""
 
-    def test_initialization(self) -> None:
+    def test_initialization(self, in_memory_db: Any) -> None:
         api_key_obtained = os.environ.get('ALPHA_VANTAGE_API_KEY', 'key not found')
         if api_key_obtained == 'key_not_found':
             logging.debug('In test market data production file - failed to obtain api key from environment variables. API Key obtained: %s', api_key_obtained)
             raise KeyError('Key not found in the environment variables')
-        instance = FinancialDataDownloader()
+        instance = FinancialDataDownloader(db_conn=in_memory_db)
         assert isinstance(instance, FinancialDataDownloader)
 
         assert instance.api_key == api_key_obtained
@@ -55,7 +55,7 @@ class TestFinancialDataDownloader:
             ('TCS',)
         )
 
-        logging.debug(f"Insertion fetch result: {rows}")
+        logging.debug("Insertion fetch result: %s", rows)
 
         # Expecting exactly one row
         assert len(rows) == 1
