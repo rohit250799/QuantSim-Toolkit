@@ -2,14 +2,14 @@ name: CI
 
 on:
   push:
-    branches: [master, dev]
+    branches: [master, dev, ci_integration_2]
   pull_request:
-    branches: [master, dev]
+    branches: [master, dev, ci_integration_2]
 
-# Prevent concurrent runs
+# Prevents concurrent runs
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false  # No cancelling, just queue
+  cancel-in-progress: true  # Giving priority to the latest commit , else it clogs the queue 
 
 jobs:
   build:
@@ -18,7 +18,7 @@ jobs:
     
     env:
       PYTHON_VERSION: "3.12.11"
-      UV_VERSION: "0.8.23"
+      #UV_VERSION: "0.8.23"
       UV_PYTHON_PREFERENCE: "only-managed"
       # Optimization flags
       PYTHONUNBUFFERED: "1"
@@ -28,37 +28,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Setup UV
-        uses: astral-sh/setup-uv@v2
+      # Using standard GitHub action to acquire the Python interpreter
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
         with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-      
-      - name: Install Python ${{ env.PYTHON_VERSION }}
-        run: uv python install ${{ env.PYTHON_VERSION }}
-      
-      - name: Verify exact Python version
-        run: |
-          echo "=== Version Verification ==="
-          echo "Expected Python: ${{ env.PYTHON_VERSION }}"
-          echo "Expected UV: ${{ env.UV_VERSION }}"
-          
-          # Verify UV version
-          UV_ACTUAL=$(uv --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
-          echo "UV Actual: $UV_ACTUAL"
-          
-          # CRITICAL: Verify exact Python version
-          PYTHON_ACTUAL=$(uv run python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')")
-          echo "Python Actual: $PYTHON_ACTUAL"
-          
-          if [ "$PYTHON_ACTUAL" != "${{ env.PYTHON_VERSION }}" ]; then
-            echo "CRITICAL: Python version mismatch!"
-            echo "Quantitative code requires EXACT Python version match"
-            echo "Different versions = Different numerical results"
-            exit 1
-          fi
-          
-          echo "All versions match exactly"
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip' 
+
+      # Installing UV itself into the environment created above
+      - name: Install UV
+        run: pip install uv
       
       - name: Cache dependencies
         uses: actions/cache@v3
@@ -69,22 +48,9 @@ jobs:
           key: ${{ runner.os }}-python-${{ env.PYTHON_VERSION }}-uv-${{ hashFiles('uv.lock', 'pyproject.toml', 'requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-python-${{ env.PYTHON_VERSION }}-uv-
-        
-      - name: install pytest
-        run: |
-          uv add --dev "pytest>=8.4.2"
-          uv add --dev "pytest-cov>=4.1.0"  # For coverage
-          uv add --dev "bandit>=1.7.0"      # For security
-      
-      - name: Install production dependencies
-        run: uv sync
 
-      - name: Install test dependencies
-        run: |
-          echo "=== Installing test dependencies ==="
-          uv pip install pytest pytest-cov pytest-xdist
-          echo "Test packages installed:"
-          uv pip list | grep -E "(pytest|cov|xdist)"
+      - name: Install all dependencies (prod and test)
+        run: uv sync
       
       - name: Type checking
         run: |
@@ -93,18 +59,28 @@ jobs:
             --strict \
             --warn-unused-configs \
             --warn-redundant-casts
+
+            
+      # Will include --cov=src and coverage options when ready
+      # Since Pytest auto-discovers in-memory DB fixture and uses it, so no manual setup for db
+
+      - name: Run tests
+        run: |  
+          mkdir -p test-results
+          
+          uv run pytest \
+            tests/ \
+            -v \
+            --tb=short \
+            --junitxml=test-results/junit.xml \
       
-      - name: Run tests (no coverage - temporary)
-      run: |
-        mkdir -p test-results
-        
-        uv run pytest \
-          tests/ \
-          -v \
-          --tb=short \
-          --junitxml=test-results/junit.xml \
-          --random-seed=42 
-      
+      # Explicitly use the configuration file to exclude virtual environments,
+      # ensuring the scan focuses only on src/ and tests/ code.
+      - name: Quick security scan
+        run: |  
+          echo "=== Security Check ==="
+          uv run bandit -c .bandit.yaml -r . -lll 2>&1 | grep -q "HIGH" && exit 1 || echo "No high severity issues"
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -112,15 +88,9 @@ jobs:
           name: test-results
           path: |
             test-results/junit.xml
-            test-results/coverage.xml
           retention-days: 30
       
-      - name: Quick security scan
-        run: |
-          echo "=== Security Check ==="
-          # Install bandit if not in dependencies
-          uv pip install bandit || true
-          uv run bandit -r . -ll 2>&1 | grep -q "HIGH" && exit 1 || echo "No high severity issues"
+      
 
 # jobs:
 #   test:

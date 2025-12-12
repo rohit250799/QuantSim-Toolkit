@@ -4,6 +4,7 @@ import os
 import logging
 import time
 from datetime import datetime, timedelta
+from sqlite3 import Connection
 import requests
 import pandas as pd
 
@@ -69,10 +70,10 @@ class Alert_Acknowledged(Enum):
     FALSE_POSITIVE = 3
 
 class FinancialDataDownloader:
-    def __init__(self) -> None:
+    def __init__(self, db_conn: None | Connection = None) -> None:
         self.api_key: str = os.environ.get('ALPHA_VANTAGE_API_KEY', 'key not found')
         self.base_url: str = 'https://www.alphavantage.co'
-        self.test_db_connection = get_prod_conn()
+        self.test_db_connection = db_conn if db_conn is not None else get_prod_conn()
 
     def download_historical_stock_data(self, stock_symbol: str, market: str = 'BSE', timeframe: str = 'id', save_path: str = 'src/data/') -> str:
         """
@@ -492,8 +493,8 @@ class FinancialDataDownloader:
 
 result_class = FinancialDataDownloader()
 
-data = result_class.fetch_daily_data(symbol='TCS', market='BSE')
-print(data)
+# data = result_class.fetch_daily_data(symbol='TCS', market='BSE')
+# print(data)
 #storing_data_result = result_class.process_and_store('TCS', data)
 #print(storing_data_result)
 #print(execute_query(DB_PATH, "update circuit_breaker_states set state = ? where symbol_id = ?", (Circuit_State.OPEN.value, 2)))
