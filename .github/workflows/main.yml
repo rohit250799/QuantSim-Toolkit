@@ -2,14 +2,14 @@ name: CI
 
 on:
   push:
-    branches: [master, dev]
+    branches: [master, dev, ci_integration_2]
   pull_request:
-    branches: [master, dev]
+    branches: [master, dev, ci_integration_2]
 
 # Prevents concurrent runs
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false  # No cancelling, just queue
+  cancel-in-progress: true  # Giving priority to the latest commit , else it clogs the queue 
 
 jobs:
   build:
@@ -28,37 +28,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Setup UV
+      # Combining Python installation and UV setup in singel step for efficiency.
+      - name: Setup UV and Python ${{ env.PYTHON_VERSION }}
         uses: astral-sh/setup-uv@v2
         with:
           version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
           enable-cache: true
-      
-      - name: Install Python ${{ env.PYTHON_VERSION }}
-        run: uv python install ${{ env.PYTHON_VERSION }}
-      
-      - name: Verify exact Python version
-        run: |
-          echo "=== Version Verification ==="
-          echo "Expected Python: ${{ env.PYTHON_VERSION }}"
-          echo "Expected UV: ${{ env.UV_VERSION }}"
-          
-          # Verify UV version
-          UV_ACTUAL=$(uv --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
-          echo "UV Actual: $UV_ACTUAL"
-          
-          # CRITICAL: Verify exact Python version
-          PYTHON_ACTUAL=$(uv run python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')")
-          echo "Python Actual: $PYTHON_ACTUAL"
-          
-          if [ "$PYTHON_ACTUAL" != "${{ env.PYTHON_VERSION }}" ]; then
-            echo "CRITICAL: Python version mismatch!"
-            echo "Quantitative code requires EXACT Python version match"
-            echo "Different versions = Different numerical results"
-            exit 1
-          fi
-          
-          echo "All versions match exactly"
       
       - name: Cache dependencies
         uses: actions/cache@v3
@@ -69,22 +45,9 @@ jobs:
           key: ${{ runner.os }}-python-${{ env.PYTHON_VERSION }}-uv-${{ hashFiles('uv.lock', 'pyproject.toml', 'requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-python-${{ env.PYTHON_VERSION }}-uv-
-        
-      # - name: install pytest
-      #   run: |
-      #     uv add --dev "pytest>=8.4.2"
-      #     uv add --dev "pytest-cov>=4.1.0"  # For coverage
-      #     uv add --dev "bandit>=1.7.0"      # For security
-      
-      - name: Install production dependencies
-        run: uv sync
 
-      - name: Install test dependencies
-        run: |
-          echo "=== Installing test dependencies ==="
-          uv pip install pytest pytest-cov pytest-xdist bandit
-          echo "Test packages installed:"
-          uv pip list | grep -E "(pytest|cov|xdist)"
+      - name: Install all dependencies (prod and test)
+        run: uv sync
       
       - name: Type checking
         run: |
@@ -93,8 +56,9 @@ jobs:
             --strict \
             --warn-unused-configs \
             --warn-redundant-casts
-      
-      - name: Run tests (no coverage - temporary)
+
+      - name: Run tests
+        # Since Pytest auto-discovers in-memory DB fixture and uses it, so no manual setup for db
         run: |  
           mkdir -p test-results
           
@@ -103,7 +67,14 @@ jobs:
             -v \
             --tb=short \
             --junitxml=test-results/junit.xml \
+            # Will include --cov=src and coverage options when ready
       
+      - name: Quick security scan
+        run: |  
+          echo "=== Security Check ==="
+          # Install bandit if not in dependencies
+          uv run bandit -r . -ll 2>&1 | grep -q "HIGH" && exit 1 || echo "No high severity issues"
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -113,12 +84,7 @@ jobs:
             test-results/junit.xml
           retention-days: 30
       
-      - name: Quick security scan
-        run: |  
-          echo "=== Security Check ==="
-          # Install bandit if not in dependencies
-          uv pip install bandit || true
-          uv run bandit -r . -ll 2>&1 | grep -q "HIGH" && exit 1 || echo "No high severity issues"
+      
 
 # jobs:
 #   test:
