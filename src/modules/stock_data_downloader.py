@@ -493,8 +493,8 @@ class FinancialDataDownloader:
 
 result_class = FinancialDataDownloader()
 
-data = result_class.fetch_daily_data(symbol='TCS', market='BSE')
-print(data)
+# data = result_class.fetch_daily_data(symbol='TCS', market='BSE')
+# print(data)
 #storing_data_result = result_class.process_and_store('TCS', data)
 #print(storing_data_result)
 #print(execute_query(DB_PATH, "update circuit_breaker_states set state = ? where symbol_id = ?", (Circuit_State.OPEN.value, 2)))
