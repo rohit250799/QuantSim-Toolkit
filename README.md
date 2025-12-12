@@ -23,13 +23,24 @@ This project focuses on **Quant Development**, emphasizing **code structure, app
 2. **Dependency management** - uv (it needs to be installed in your local)
 3. **Libraries used**: Numpy, Pandas, Matplotlib, Pytest
 
-To start working on the project, fork the repo and clone it in your local. Once the cloning is complete, you can easily reproduce the 
-environment by running the following commands in order:
+**Prerequisites:**
+1. Python version >= 3.12 should be installed in the system and added to your path
+2. Git should also be installed 
+3. Our dependency manager: **uv** which can be installed using the command **pip install uv** from the terminal in case of Linux. For other OS, please check the command online
+and enter it from the terminal or command prompt. 
 
-1. Navigate to the root directory of the project using 'cd' command from the terminal (root directory is the one where the Readme.md is stored)
-2. To install all declared dependencies (including main and dev dependencies by default) into a virtual environment managed by uv, 
-you can use the 'uv sync' command
-3. Activate the virtual environment and start working using command: source .venv/bin/activate (.venv is the name of the virtual environment directory)
+**How to install it on your local to try it out (follow the order of instructions):**
+1. clone the repo using the command: **git clone https://github.com/rohit250799/QuantSim-Toolkit.git** from the terminal. It will be cloned in your current directory.
+2. Now, to enter the root directory use the command: **cd root_dir_name** - replace the root_dir_name with the name of the actual root directory. To check the name, use: **ls** command
+from the terminal and the name output is the name of your root directory. Next, all commands are to be entered from root directory. 
+3. Now we need the perfect isolated environment to ensure the machine's own software versions do not pollute our own local environment for the project. So, enter the command
+**uv sync** from the terminal and let uv build the perfect environment. 
+4. Activate the virtual environment by using the command: **source .venv/bin/activate** (for linux users) if its not activated - if there is a (.venv) before every line, its activated successfully. 
+5. To validate the systems / perform vanity checks - run the command **uv run pytest tests/ -v** from the terminal to perform the unit tests. The terminal will display your
+test results on the screen. 
+6. If all the unit tests passm you can try out actual logic etc. from the terminal by entering the command: ****python3 -m src.main analyze --symbol 'TCS'****
+
+**To start contributing on the project**, you have to first fork the repo and then repeat the previously mentioned steps on installing it into your local. 
 
 ---
 
