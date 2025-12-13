@@ -14,7 +14,7 @@ and finance by allowing users to:
 - Perform Monte Carlo simulations for stock price paths
 - Interact with a unified CLI interface
 
-This project focuses on **Quant Development**, emphasizing **code structure, applied math, and system-level thinking**.
+This project focuses on **Quant Development**, emphasizing **code structure, applied math, and system-level thinking**
 
 ---
 
@@ -58,7 +58,7 @@ Activate the virtual environment first by using **source .venv/bin/activate** fr
 
 ![Multiple dice after simulation](screenshots/multi_dice_simulation.png)
 
-4. To download data about a particular stock: you can use the command **python3 main.py download -symbol TCS -exchange BSE**. Symbol refers to the name of the stock and exchange means the particular stock exchange where it is being traded and you want your data from. 
+4. To download data about a particular stock: you can use the command **python3 -m src.main download -symbol 'IRCTC' -exchange 'BSE'**. Symbol refers to the name of the stock/ticker and exchange means the particular stock exchange where it is being traded and you want your data from. 
 
 ![Download stock data](screenshots/download_stock_data.png)
 
