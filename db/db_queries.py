@@ -63,3 +63,9 @@ CREATE TABLE IF NOT EXISTS system_config (
     description TEXT 
 )
 """
+
+list_all_existing_tables_query: str = """
+SELECT name FROM sqlite_schema WHERE type = 'table'
+AND name NOT LIKE 'sqlite_%'
+"""
+
