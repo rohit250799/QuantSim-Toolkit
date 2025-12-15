@@ -1,6 +1,7 @@
 from enum import Enum
 
 class LogLevel(Enum):
+    """specifies the log level to be stored in the db"""
     INFO = "INFO"
     WARNING = "WARNING"
     ERROR = "ERROR"
