@@ -21,10 +21,13 @@ class DataValidator:
 
         Returns: original Dataframe
         """
-        df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True)
-        df = df.set_index('timestamp').sort_index(ascending=True)
+        if not isinstance(df.index, pd.DatetimeIndex):
+            raise TypeError("DataFrame must be indexed by DatetimeIndex")
+        if df.index.tz is None:
+            df.index = df.index.tz_localize("UTC")
         df['daily_returns'] = df['close'].pct_change()
         self.data_loader.delete_unresolved_validation_log(ticker)
+        logging.debug('The dataframe is: \n%s', df)
         self._check_gaps(ticker, df)
         self._check_outliers(ticker, df)
         self._check_stale(ticker, df)
@@ -38,15 +41,16 @@ class DataValidator:
         Logs every gap to the log file
         """
         data_loader = self.data_loader
+        if df.empty:
+            logging.debug('Empty dataframe passed to check gaps function. So, skipping the validation check')
+            raise pd.errors.EmptyDataError('Empty dataframe was supplied as a parameter')
         start_date = df.index[0]
         end_date = df.index[-1]
         logging.debug('The start and end dates are: %s and %s', start_date, end_date)
 
         all_business_dates = pd.date_range(start=start_date, end=end_date, freq='B')
         all_unique_dates = df.index.normalize().unique()
-        # expected_trading_days = all_dates[all_dates.weekday < 5]
-        # trading_days_set: set = set(expected_trading_days)
-
+        
         missing_days = set(all_business_dates) - set(all_unique_dates)
         logging.debug('The missing days are: %s', missing_days)
 
@@ -72,9 +76,7 @@ class DataValidator:
 
         signal_mask = (df['daily_returns'] >  upper_bound_in_five_standard_deviation) & (df['daily_returns'] < lower_bound_in_five_standard_deviation)
         triggered_timestamps = df.index[signal_mask]
-        #logging.debug('The triggered timestamps are: %s and the data type is: %s', triggered_timestamps, type(triggered_timestamps))
         triggered_indices = df.index[signal_mask]
-        #logging.debug('The triggered indices are: %s', triggered_indices)
 
         outlier_issue = ValidationIssueType.OUTLIER_5SD.value
         for timestamp_idx in triggered_indices:
