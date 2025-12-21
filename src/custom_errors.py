@@ -29,3 +29,14 @@ class TableDoesNotExistError(Exception):
 
     def __str__(self) -> str:
         return f"{self.message}"
+    
+class CircuitOpenStateError(Exception):
+    """Exceotion raised when the current state of a circuit is Open, so no API calls allowed"""
+
+    def __init__(self, message):
+        super().__init__(message)
+        self.message = message
+
+    def __str__(self) -> str:
+        return f"{self.message}"
+    

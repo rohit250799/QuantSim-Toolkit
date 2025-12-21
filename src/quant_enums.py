@@ -8,9 +8,9 @@ class LogLevel(Enum):
     CRITICAL = "CRITICAL"
 
 class Circuit_State(Enum):
-    CLOSED = 0
-    OPEN = 1
-    HALF_OPEN = 2
+    CLOSED = "CLOSED"
+    OPEN = "OPEN"
+    HALF_OPEN = "HALF OPEN"
 
 class ValidationIssueType(Enum):
     MISSING_DAY = "MISSING_DAY"
@@ -19,4 +19,12 @@ class ValidationIssueType(Enum):
     UNLANDLED_SPLIT = "UNHANDLED_SPLIT"
     MISSING_VOLUME = "MISSING_VOLUME"
 
-
+class IssueType(Enum):
+    API_RATE_LIMIT = "API Rate Limit"
+    API_SERVER_ERROR = "API Server Error"
+    NETWORK_TIMEOUT = "Network Timeout"
+    VALIDATION_ERROR = "Validation Error"
+    CIRCUIT_OPEN = "Circuit Open"
+    UNEXPECTED_ERROR = "Unexpected Error"
+    API_SUCCESS = "API Success"
+    
