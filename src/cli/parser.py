@@ -18,6 +18,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser_downloader = subparsers.add_parser('download', help='Download required data in CSV format')
     parser_downloader.add_argument('-symbol', '--stockSymbol', help='symbol of the stock', dest='symbol')
     parser_downloader.add_argument('-exchange', '--stock_exchange', help='Stock exchange where the stock is traded', default='BSE', dest='exchange')
+    parser_downloader.add_argument('-sdate', '--startdate', help='specifies the starting date for filtering data', dest='startDate')
+    parser_downloader.add_argument('-edate', '--enddate', help='specifies the ending date for filtering data', dest='endDate')
 
     #simulate
     parser_simulation = subparsers.add_parser('simulation', help='Probability simulation to simulate dice rolls, coin tosses etc')
@@ -28,5 +30,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser_simulation.add_argument('-dice', '--dicenumber', default=2, type=int, dest='diceNumber', help='number of dice to be used in the sim')
     parser_simulation.add_argument('-sides', '--diceTotalSides', default=6, type=int, dest='diceTotalSides', help='Total sides of each dice')
     parser_simulation.add_argument('-tries', '-totalTries', default=10, type=int, dest='totalTries', help='The number of tries in the simulation')
+
+    #validate
+    parser_validator = subparsers.add_parser('validate', help='Helps validate data to be used')
+    parser_validator.add_argument('-tname', '--tickerName', help='Name of the ticker whose data you want to vaidate', dest='tName')
+    parser_validator.add_argument('-mpath', '--mockPath', help='Path of the file', default='src/data', dest='mPath')
 
     return parser
