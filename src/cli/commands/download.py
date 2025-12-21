@@ -1,9 +1,7 @@
-from src.modules.stock_data_downloader import FinancialDataDownloader
+from src.flow_controller import FlowController
 
 import argparse
 
-def run_download(args: argparse.Namespace) -> None:
-    downloader = FinancialDataDownloader()
-    result = downloader.download_historical_stock_data(args.symbol, args.exchange)
-    print(result)
+def run_download(args: argparse.Namespace, flow_controller: FlowController) -> None:
+    flow_controller.handle_download_request(args.symbol, args.startDate, args.endDate)
     return
