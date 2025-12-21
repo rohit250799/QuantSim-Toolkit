@@ -58,7 +58,7 @@ Activate the virtual environment first by using **source .venv/bin/activate** fr
 
 ![Multiple dice after simulation](screenshots/multi_dice_simulation.png)
 
-4. To download data about a particular stock: you can use the command **python3 -m src.main download -symbol 'IRCTC' -exchange 'BSE'**. Symbol refers to the name of the stock/ticker and exchange means the particular stock exchange where it is being traded and you want your data from. 
+4. To download data about a particular stock between a specific period: you can use the command **python3 -m src.main download -symbol 'TCS' -sdate '2025-09-01' -edate '2025-09-22'**. Symbol refers to the name of the stock/ticker, sdate and edate are starting and ending dates respectively.  
 
 ![Download stock data](screenshots/download_stock_data.png)
 
@@ -68,6 +68,11 @@ In this case, there are some things that you need to know:
     b) To download the stock data, I have used Alpha Vantage API for this project, from where you can download data for free(to a certain limit). To get started with this, every user needs to have a API key from Alpha Vantage (which is free). You can visit this link and generate your own API key by [clicking here](https://www.alphavantage.co/support/#api-key)
     c) Once you get an API key, you have to store it in a .env file inside the modules/ directory. Store your API key there in the format: export API_KEY='A^5435NDD'
     d) In the above point, maintaining the format is very important in the .env file and there should be no space on either side of '='
+
+The downloaded stock data will be stored in the price_data table in db, and will be loaded as a Pandas DataFrame for easier analysis. There will ne multiple validation checks performed on the downloaded
+data like **checking for gaps**, **checking outliers** and **checking for stale data** and for those records that did not pass the validation checks, logs will be created in the logs directory.
+
+![Display validated download data](screenshots/downloaded_stock_data_as_dataframe_and_validation.png)
 
 5. Using generators with chunksize to read large downloaded CSV file data and calculating the daily stock returns on each chunk. You can use the analyzer by running the command **python3 -m src.main analyze --symbol 'TCS'** to calculate and display the mean daily return, annualized volatility etc. on the terminal. Replace  'TCS' with any other stock symbol you like.  
 
