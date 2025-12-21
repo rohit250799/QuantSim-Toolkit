@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS symbols (
 circuit_breaker_states_table_creation_query: str = """
 CREATE TABLE IF NOT EXISTS circuit_breaker_states(
     ticker TEXT NOT NULL PRIMARY KEY,
-    is_open TEXT NOT NULL,
+    state TEXT NOT NULL,
     failure_count INTEGER NOT NULL DEFAULT 0, 
     last_fail_time INTEGER, 
     cooldown_end_time INTEGER 
@@ -69,3 +69,39 @@ SELECT name FROM sqlite_schema WHERE type = 'table'
 AND name NOT LIKE 'sqlite_%'
 """
 
+record_circuit_state_initialization_query: str = """
+INSERT OR IGNORE INTO circuit_breaker_states VALUES (
+    ?, ?, ?, ?, ?
+)
+"""
+
+set_circuit_state_query: str = """
+UPDATE circuit_breaker_states
+SET state = ?, failure_count = ?, last_fail_time = ?, cooldown_time = ?
+WHERE ticker = ?
+"""
+
+get_historical_data_query: str = """
+SELECT * FROM price_data where ticker = ? and timestamp betweem ? AND ? ORDER BY timestamp ASC
+"""
+
+insert_or_update_record_in_symbols_table_query: str = """
+INSERT INTO symbols VALUES (?, ?, ?, ?, ?, ?)
+"""
+
+get_all_entries_of_ticker_from_validation_log_table_query: str = """
+SELECT * FROM validation_log where ticker = ? ORDER BY date ASC
+"""
+
+insert_triggered_indices_in_validation_log_query: str = """
+INSERT INTO validation_log (ticker, date, issue_type, description) values (?, ?, ?, ?)
+"""
+
+delete_validation_log: str = """
+DELETE FROM validation_log WHERE ticker = ? AND resolved = 0
+"""
+
+system_logs_insertion_query: str = """
+INSERT INTO system_logs (timestamp, level, source, message, ticker, api_status_code, response_time_ms) 
+VALUES (?, ?, ?, ?, ?, ?, ?) 
+"""
