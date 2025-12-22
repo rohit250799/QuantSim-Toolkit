@@ -18,7 +18,7 @@ class FlowController:
         self.circuit_breaker = circuit_breaker
         self.data_validator = data_validator
 
-    def handle_validation_test(self, ticker: str, mock_file_path: str | None = None):
+    def handle_validation_test(self, ticker: str, mock_file_path: str | None = None) -> None:
         """
         Acts as a diagnostic tool - by loading data from a CSV file into pandas dataframe, validates and cleans the data,
         gets validation log to 
@@ -30,6 +30,8 @@ class FlowController:
             logging.debug('File not found in your path. Check your path again!')
             raise
         else:
+            df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+            df = df.set_index("timestamp").sort_index()
             clean_and_valid_data = self.data_validator.validate_and_clean(ticker, df)
             validation_logs = self.data_loader.get_validation_log(ticker)
 
@@ -38,7 +40,7 @@ class FlowController:
 
         return 
     
-    def dispatch_analysis_request(self, ticker, benchmark, start, end):
+    def dispatch_analysis_request(self, ticker: str, benchmark: str, start: str, end: str) -> None:
         """
         Serves the computation purpose for price data analysis. Fetches price data for both tickers -> if data exists ->
         enters into the analysis module for computation and returns results to the terminal
@@ -46,7 +48,7 @@ class FlowController:
         
         pass
 
-    def handle_download_request(self, ticker, start_date: str, end_date: str):
+    def handle_download_request(self, ticker: str, start_date: str, end_date: str) -> None:
         """
         Transforms the user's command into a clean, validated and stored dataset. It is responsible for handling the
         db, network(API) and validator in a single sequence
@@ -71,9 +73,19 @@ class FlowController:
                 logging.debug('The api call returned data in handle download request is: \n%s', api_call_data)
             except (ConnectionAbortedError, ConnectionError, ConnectionRefusedError, TimeoutError, requests.exceptions.HTTPError) as e:
                 logging.debug('Inside the handle download request function, the api call has failed. Error: %s', e)
-                self.circuit_breaker.handle_failure(ticker)
+                current_timestamp = int(datetime.now().timestamp())
+                self.circuit_breaker.handle_failure(ticker, current_timestamp=current_timestamp)
                 return
             else:
+                if api_call_data is None:
+                    logging.debug(
+                        "API call succeeded but returned no data for ticker %s", ticker
+                    )
+                    current_timestamp = int(datetime.now().timestamp())
+                    self.circuit_breaker.handle_failure(
+                        ticker, current_timestamp=current_timestamp
+                    )
+                    return
                 clean_data = self.data_validator.validate_and_clean(ticker, df=api_call_data)
                 logging.debug('The data as param in validate and clean, as dataframe is: \n%s', api_call_data)
                 self.data_loader.insert_daily_data(ticker=ticker, df=clean_data)
