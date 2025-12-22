@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 
 from src.modules.analytics.returns_analyzer import calculate_daily_portfolio_returns, read_all_csv_data, perform_data_validation
 
-logging.basicConfig(filename='logs/main_file_logs.txt', level=logging.DEBUG, 
-                    format=' %(asctime)s -  %(levelname)s -  %(message)s')
+logger = logging.getLogger("analytics")
+
 
 def calculate_portfolio_returns(df_prices: pd.DataFrame) -> pd.Series: 
     """

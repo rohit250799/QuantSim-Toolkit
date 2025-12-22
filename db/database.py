@@ -2,14 +2,12 @@ from typing import List, Tuple, Any
 import os
 import sqlite3
 import logging
-from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
 PROD_DB_PATH = "db/quantsim.db"
 
-logging.basicConfig(filename='logs/db_logs.txt', level=logging.DEBUG, 
-                    format=' %(asctime)s -  %(levelname)s -  %(message)s')
+logger = logging.getLogger("db")
 
 def init_db(db_path: str = PROD_DB_PATH) -> None:
     """Initialize the database and create directories if necessary"""
@@ -59,9 +57,6 @@ def execute_query(conn: sqlite3.Connection, query: str, params: tuple[Any, ...] 
         logging.debug('Database error duting query execution: %s', e)
         raise
 
-
-
-
 def insert_bulk_data(db_path: str, records: List[Tuple[Any, ...]]) -> int:
     """
     Insert multiple rows in the database with transaction safety. 
@@ -91,31 +86,7 @@ def insert_bulk_data(db_path: str, records: List[Tuple[Any, ...]]) -> int:
     finally:
         conn.close()
     return records_inserted
- 
 
-symbol_table_creation_query: str = "create table if not exists symbols (id integer primary key, ticker text unique not null, " \
-"company_name text, created_at text default CURRENT_TIMESTAMP);"
+#for timestamp, epoch unit is: unix epoch seconds
 
-price_data_table_creation_query: str = "create table if not exists price_data(id INTEGER PRIMARY KEY, " \
-"symbols_id INTEGER, timestamp TEXT NOT NULL, open REAL,close REAL, high REAL, low REAL, volume int, " \
-"created_at TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(symbols_id, timestamp), FOREIGN KEY (symbols_id) REFERENCES symbols(id));"
 
-api_logs_table_creation_query: str = "create table if not exists api_logs(id int PRIMARY KEY, symbol TEXT, " \
-"endpoint TEXT, status_code int, response_time_ms int, timestamp TEXT DEFAULT CURRENT_TIMESTAMP);"
-
-circuit_breaker_states_table_creation_query: str = "create table if not exists circuit_breaker_states(id INTEGER PRIMARY KEY, " \
-"symbol_id INTEGER, failure_count INTEGER, last_fail_time TEXT, state INTEGER NOT NULL, cooldown_end_time TEXT DEFAULT NULL)"
-
-error_metrics_table_creation_query: str = "create table if not exists error_metrics(id INTEGER PRIMARY KEY, timestamp TEXT, error_type INTEGER, error_message TEXT, resolution INTEGER)"
-
-alerts_table_creation_query: str = "create table if not exists alerts(id INTEGER PRIMARY KEY, timestamp TEXT, alert_type INTEGER, symbol TEXT, message TEXT, severity INTEGER, acknowledged INTEGER)"
-
-api_call_metrics_table_creation_query: str = "create table if not exists api_call_metrics(id INTEGER PRIMARY KEY, timestamp TEXT, symbol TEXT, endpoint TEXT, status_code INTEGER, response_time_ms INTEGER, success INTEGER, error_message TEXT)"
-
-#create_index_for_timestamp_field_in_api_call_metrics = execute_query(DB_PATH, "CREATE INDEX idx_timestamp on api_call_metrics(timestamp)")
-#alerts_table_res = execute_query(DB_PATH, alerts_table_creation_query)
-#api_call_metrics_table_res = execute_query(DB_PATH, api_call_metrics_table_creation_query)
-
-#print(list_tables(DB_PATH))
-
-#print(execute_query(DB_PATH, 'select * from error_metrics;'))

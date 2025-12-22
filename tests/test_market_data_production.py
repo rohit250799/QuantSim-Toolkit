@@ -1,7 +1,11 @@
-from src.modules.stock_data_downloader import FinancialDataDownloader, Circuit_State
-from db.database import execute_query, symbol_table_creation_query, circuit_breaker_states_table_creation_query
+# from src.modules.stock_data_downloader import FinancialDataDownloader, Circuit_State
+from db.database import execute_query
+from db.db_queries import circuit_breaker_states_table_creation_query
+from src.flow_controller import FlowController
+from src.adapters.api_adapter import ApiAdapter
 from src.custom_errors import RecordNotFoundError
-from helper_functions import make_open_circuit_breaker_state_table_row, can_call_api
+from helper_functions import make_symbol_row, make_price_data_row, make_open_circuit_breaker_state_table_row, make_closed_circuit_breaker_state_table_row, can_call_api
+from conftest import fetch_scalar
 
 from collections.abc import Generator
 from typing import Any
@@ -12,23 +16,22 @@ import sqlite3
 #import tempfile
 from datetime import datetime, timedelta
 
-logging.basicConfig(filename='logs/pytest_logs.txt', level=logging.DEBUG,
-                    format=' %(asctime)s -  %(levelname)s -  %(message)s')
+logger = logging.getLogger("errors")
+
 class TestFinancialDataDownloader:
     """Testing all the functions of the financial data downloader class"""
 
     def test_initialization(self, in_memory_db: Any) -> None:
         api_key_obtained = os.environ.get('ALPHA_VANTAGE_API_KEY', 'key not found')
         if api_key_obtained == 'key_not_found':
-            logging.debug('In test market data production file - failed to obtain api key from environment variables. API Key obtained: %s', api_key_obtained)
+            logger.debug('In test market data production file - failed to obtain api key from environment variables. API Key obtained: %s', api_key_obtained)
             raise KeyError('Key not found in the environment variables')
-        instance = FinancialDataDownloader(db_conn=in_memory_db)
-        assert isinstance(instance, FinancialDataDownloader)
+        instance = ApiAdapter()
 
         assert instance.api_key == api_key_obtained
         assert instance.base_url == 'https://www.alphavantage.co'
 
-        logging.info('The assertions made on creation of financial data downloader are all correct - the api key and base url are all rightly fetched')
+        logger.info('The assertions made on creation of API Adapter are all correct - the api key and base url are all rightly fetched')
 
     def test_new_table_creation(self, in_memory_db: Any) -> None:
         """Test the creation of a new table in the in-memory database while performing unit tests"""
@@ -37,7 +40,7 @@ class TestFinancialDataDownloader:
         execute_query(conn, f"CREATE TABLE {table_name} (id INTEGER PRIMARY KEY, symbol TEXT);")
         created_tables = execute_query(conn, "SELECT name FROM sqlite_master WHERE type='table';")
         all_table_names = [row["name"] for row in created_tables]
-        logging.debug('The newly created tables from test table creation function are: %s', all_table_names)
+        logger.debug('The newly created tables from test table creation function are: %s', all_table_names)
         assert table_name in all_table_names
 
     def test_data_insertion(self, in_memory_db: Any) -> None:
@@ -47,7 +50,7 @@ class TestFinancialDataDownloader:
 
         execute_query(conn, f"CREATE TABLE {table_name} (id INTEGER PRIMARY KEY, symbol TEXT);")
         execute_query(conn, f"INSERT INTO {table_name}(symbol) VALUES (?)", ('TCS',))
-        logging.info("Inserted symbol: TCS")
+        logger.info("Inserted symbol: TCS")
 
         rows = execute_query(
             conn,
@@ -55,7 +58,7 @@ class TestFinancialDataDownloader:
             ('TCS',)
         )
 
-        logging.debug("Insertion fetch result: %s", rows)
+        logger.debug("Insertion fetch result: %s", rows)
 
         # Expecting exactly one row
         assert len(rows) == 1
@@ -71,23 +74,25 @@ class TestFinancialDataDownloader:
         """
         conn = in_memory_db
         execute_query(conn, circuit_breaker_states_table_creation_query)
-        state = execute_query(
+        state = fetch_scalar(
             conn,
-            "SELECT state FROM circuit_breaker_states WHERE symbol_id = ? LIMIT 1",
-            (1,)
-        )[0][0]
+            "SELECT state FROM circuit_breaker_states WHERE ticker = ?",
+            ('TCS',)
+        )
+        logger.info('The state returned from the tests is: %s', state)
 
         # OPEN state → API must NOT be allowed
         assert can_call_api(state) is False
-        logging.info("Assertion correct: OPEN state (1) → API calls NOT allowed")
+        logger.info("Assertion correct: OPEN state (1) → API calls NOT allowed")
 
-        state = execute_query(
+        state = fetch_scalar(
             conn,
-            "SELECT state FROM circuit_breaker_states WHERE symbol_id = ? LIMIT 1",
-            (2,)
-        )[0][0]
+            "SELECT state FROM circuit_breaker_states WHERE ticker = ?",
+            ('INFY',)
+        )
 
+        #closed state, allowing API calls
         assert can_call_api(state) is True
-        logging.info("Assertion correct: CLOSED state (0) → API calls allowed")
+        logger.info("Assertion correct: CLOSED state (0) → API calls allowed")
 
     
