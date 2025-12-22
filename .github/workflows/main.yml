@@ -6,7 +6,6 @@ on:
   pull_request:
     branches: [master, dev, ci_integration_2]
 
-# Prevents concurrent runs
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true  # Giving priority to the latest commit , else it clogs the queue 
@@ -18,7 +17,6 @@ jobs:
     
     env:
       PYTHON_VERSION: "3.12.11"
-      #UV_VERSION: "0.8.23"
       UV_PYTHON_PREFERENCE: "only-managed"
       # Optimization flags
       PYTHONUNBUFFERED: "1"
@@ -90,83 +88,3 @@ jobs:
             test-results/junit.xml
           retention-days: 30
       
-      
-
-# jobs:
-#   test:
-#     runs-on: ubuntu-latest
-#     strategy:
-#       matrix:
-#         python-version: ["3.12.11"]
-
-#     steps:
-#     - name: Checkout code
-#       uses: actions/checkout@v4
-
-#     - name: Install uv
-#       uses: astral-sh/setup-uv@v1
-#       with:
-#         version: "0.8.23"
-
-#     - name: Set up Python ${{ matrix.python-version }}
-#       run: uv python install ${{ matrix.python-version }}
-
-#     - name: Install dependencies
-#       run: |
-#         uv sync --all-extras --dev
-
-#     # - name: Run static type checking
-#     #   run: |
-#     #     uv run mypy src/ tests/ --config-file pyproject.toml
-
-#     # - name: Run linting
-#     #   run: |
-#     #     uv run ruff check src/ tests/ --config pyproject.toml
-
-#     # - name: Run tests
-#     #   run: |
-#     #     uv run pytest tests/ -v --cov=src --cov-report=xml
-
-#   security-scan:
-#     runs-on: ubuntu-latest
-#     steps:
-#     - name: Checkout code
-#       uses: actions/checkout@v4
-
-#     - name: Install uv
-#       uses: astral-sh/setup-uv@v1
-
-#     - name: Install dependencies
-#       run: uv sync --dev
-
-#     # - name: Run security audit
-#     #   run: |
-#     #     uvx pip-audit
-
-#     # - name: Semgrep SAST scan
-#     #   uses: returntocorp/semgrep-action@v1
-#     #   with:
-#     #     config: p/ci
-
-#   # build-docs:
-#   #   runs-on: ubuntu-latest
-#   #   steps:
-#   #   - name: Checkout code
-#   #     uses: actions/checkout@v4
-
-#   #   - name: Install uv
-#   #     uses: astral-sh/setup-uv@v1
-
-#   #   - name: Install dependencies
-#   #     run: uv sync --all-extras --dev
-
-#   #   - name: Build documentation
-#   #     run: |
-#   #       uv run sphinx-build -b html docs/ docs/_build/
-
-#   #   - name: Upload documentation
-#   #     uses: actions/upload-artifact@v3
-#   #     with:
-#   #       name: documentation
-#   #       path: docs/_build/
-#   #       retention-days: 7

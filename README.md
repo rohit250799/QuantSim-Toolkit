@@ -14,22 +14,33 @@ and finance by allowing users to:
 - Perform Monte Carlo simulations for stock price paths
 - Interact with a unified CLI interface
 
-This project focuses on **Quant Development**, emphasizing **code structure, applied math, and system-level thinking**.
+This project focuses on **Quant Development**, emphasizing **code structure, applied math, and system-level thinking**
 
 ---
 
 **Assumptions made**: 
 1. **Linux Distribution** used - Ubuntu
 2. **Dependency management** - uv (it needs to be installed in your local)
-3. **Libraries used**: Numpy, Pandas, Matplotlib, Pytest
+3. **Libraries used**: Numpy, Pandas, Matplotlib, Pytest, Bandit
 
-To start working on the project, fork the repo and clone it in your local. Once the cloning is complete, you can easily reproduce the 
-environment by running the following commands in order:
+**Prerequisites:**
+1. Python version >= 3.12 should be installed in the system and added to your path
+2. Git should also be installed 
+3. Our dependency manager: **uv** which can be installed using the command **pip install uv** from the terminal in case of Linux. For other OS, please check the command online
+and enter it from the terminal or command prompt. 
 
-1. Navigate to the root directory of the project using 'cd' command from the terminal (root directory is the one where the Readme.md is stored)
-2. To install all declared dependencies (including main and dev dependencies by default) into a virtual environment managed by uv, 
-you can use the 'uv sync' command
-3. Activate the virtual environment and start working using command: source .venv/bin/activate (.venv is the name of the virtual environment directory)
+**How to install it on your local to try it out (follow the order of instructions):**
+1. clone the repo using the command: **git clone https://github.com/rohit250799/QuantSim-Toolkit.git** from the terminal. It will be cloned in your current directory.
+2. Now, to enter the root directory use the command: **cd root_dir_name** - replace the root_dir_name with the name of the actual root directory. To check the name, use: **ls** command
+from the terminal and the name output is the name of your root directory. Next, all commands are to be entered from root directory. 
+3. Now we need the perfect isolated environment to ensure the machine's own software versions do not pollute our own local environment for the project. So, enter the command
+**uv sync** from the terminal and let uv build the perfect environment. 
+4. Activate the virtual environment by using the command: **source .venv/bin/activate** (for linux users) if its not activated - if there is a (.venv) before every line, its activated successfully. 
+5. To validate the systems / perform vanity checks - run the command **uv run pytest tests/ -v** from the terminal to perform the unit tests. The terminal will display your
+test results on the screen. 
+6. If all the unit tests passm you can try out actual logic etc. from the terminal by entering the command: ****python3 -m src.main analyze --symbol 'TCS'****
+
+**To start contributing on the project**, you have to first fork the repo and then repeat the previously mentioned steps on installing it into your local. 
 
 ---
 
@@ -37,17 +48,7 @@ Trying out the features(all commands should be entered in the terminal from the 
 
 Activate the virtual environment first by using **source .venv/bin/activate** from the root directory
 
-1. Enter the command: **python3 main.py simulation -tries 100** to test the probability of each side of the dice after 100 rolls. Replace 100 with any other integer number to change the number of rolls 
-
-2. Enter command: **python3 main.py simulation -type coin -tries 100** to test the probability of each side of the coin after 100 tosses. Replace 100 with any other integer number to change the number of tosses 
-
-![Single coin or dice after n tries](screenshots/single_coin_or_dice.png)
-
-3. To try simulation with multiple dice (< 10), you can use this command: **python3 main.py simulation -multi -dice 3 -sides 6 -tries 10**. You can change the number of dice, sides and tries
-
-![Multiple dice after simulation](screenshots/multi_dice_simulation.png)
-
-4. To download data about a particular stock: you can use the command **python3 main.py download -symbol TCS -exchange BSE**. Symbol refers to the name of the stock and exchange means the particular stock exchange where it is being traded and you want your data from. 
+1. To download data about a particular stock between a specific period: you can use the command **python3 -m src.main download -symbol 'NMDC' -sdate '2025-09-01' -edate '2025-09-23'**. Symbol refers to the name of the stock/ticker, sdate and edate are starting and ending dates respectively.  
 
 ![Download stock data](screenshots/download_stock_data.png)
 
@@ -58,28 +59,29 @@ In this case, there are some things that you need to know:
     c) Once you get an API key, you have to store it in a .env file inside the modules/ directory. Store your API key there in the format: export API_KEY='A^5435NDD'
     d) In the above point, maintaining the format is very important in the .env file and there should be no space on either side of '='
 
-5. Using generators with chunksize to read large downloaded CSV file data and calculating the daily stock returns on each chunk. You can use the analyzer by running the command **python3 -m src.main analyze --symbol 'TCS'** to calculate and display the mean daily return, annualized volatility etc. on the terminal. Replace  'TCS' with any other stock symbol you like.  
+The downloaded stock data will be stored in the price_data table in db, and will be loaded as a Pandas DataFrame for easier analysis. There will ne multiple validation checks performed on the downloaded
+data like **checking for gaps**, **checking outliers** and **checking for stale data** and for those records that did not pass the validation checks, logs will be created in the logs directory.
+
+![Display validated download data](screenshots/download_stock_data_with_dataframe_conversion_and_filtering.png)
+
+2. Using generators with chunksize to read large downloaded CSV file data and calculating the daily stock returns on each chunk. You can use the analyzer by running the command **python3 -m src.main analyze --symbol 'TCS'** to calculate and display the mean daily return, annualized volatility etc. on the terminal. Replace  'TCS' with any other stock symbol you like.  
 
     Now, the key performance indicators of a particular stock are also displayed after the analysis. 
 
 ![Display key performance indicators](screenshots/analyze_stock.png)
 
-6. Now, the cumulative returns for the entire portfolio and for individual assets can be calculated for plotting it into line charts for easier understanding.
+3. Now, the cumulative returns for the entire portfolio and for individual assets can be calculated for plotting it into line charts for easier understanding.
 Simply navigate to the **portfolio_analyzer.py** file and run it in the terminal. Enter number 2 as input and then the chart will be displayed on the screen and will be saved in the plots directory as well. 
 
 The chart will look like this:
 ![Cumulative returns for entire portfolio vs individual assets](plots/cumulative_returns.png)
 
-7. New stock data can be fetched and now, **instead of downloading their csv data - they can also be stored directly in the db**. All the **duplicate values and invalid data will be ignored while inserting** into the database, to maintain data sanity. To try it out, **just navigate to the src/modules directory and just run the stock_data_downloader.py** file and the results will be displayed in the terminal. 
+4. To perform a validation check on your downloaded data and display the logs in your log file, you can use the command: **python3 -m src.main validate -tname 'TCS'**. Replace **TCS** with any other stock name you
+have downloaded. The validation will be performed and the logs will be displayed on your logs file 
 
-If this operation is successful, you will get a Success status along with the number of records processed, inserted into db and the total number of errors. If not successful, an
-error message will be displayed to the terminal. 
+![Validate data and log results](screenshots/run_validation_and_log_results.png)
 
-![Successfully inserted records in db](screenshots/successful_insertion_into_db.png)
-
-To check the db contents now, you can query the price_data table and all necessary records will be displayed
-
-8. Now, it comes included with a **production grade error handling system. A Circuit breaker mechanism** is implemented which will **keep transitioning between states based on the API call results**. API call failures will **implement retry logic with exponential backoff and structured logging** - to help in easier debugging.
+5. Now, it comes included with a **production grade error handling system. A Circuit breaker mechanism** is implemented which will **keep transitioning between states based on the API call results**. API call failures will **implement retry logic with exponential backoff and structured logging** - to help in easier debugging.
 
 **API calls will only be allowed if the current state of the circuit breaker is Closed or Half-Open**. The failure count as a result of unsuccessful API calls will be tracked for transparent logging into the db. For this, 3 new tables have been created in the database for **Alerts, Error Metrics and API Call Metrics**.
 
@@ -89,13 +91,27 @@ To check the db contents now, you can query the price_data table and all necessa
 
 ![Logs into API metrics table](screenshots/logging_into_api_metrics_table.png)
 
-9. To run the unit tests using Pytest, enter the command **uv run pytest -v** from the root directory. 
+6. To run the unit tests using Pytest, enter the command **uv run pytest -v** from the root directory. 
 
 ![Running unit tests with pytest](screenshots/running_unit_tests.png)
 
-The logs will be stored in **db/pytest_logs.txt**
+The logs will be stored in **logs/errors.log**
 
 ![Unit test logs](screenshots/unit_test_logs.png)
+
+7. To perform security tests on your code, you can use Bandit by running the command: **uv run bandit -c .bandit.yaml -r . -lll** and a security report will be generated on your terminal.
+
+![Running security checks with Bandit](screenshots/run_security_checks_with_bandit.png)
+
+8. Enter the command: **python3 main.py simulation -tries 100** to test the probability of each side of the dice after 100 rolls. Replace 100 with any other integer number to change the number of rolls 
+
+9. Enter command: **python3 main.py simulation -type coin -tries 100** to test the probability of each side of the coin after 100 tosses. Replace 100 with any other integer number to change the number of tosses 
+
+![Single coin or dice after n tries](screenshots/single_coin_or_dice.png)
+
+10. To try simulation with multiple dice (< 10), you can use this command: **python3 main.py simulation -multi -dice 3 -sides 6 -tries 10**. You can change the number of dice, sides and tries
+
+![Multiple dice after simulation](screenshots/multi_dice_simulation.png)
 
 ---
 
@@ -123,7 +139,7 @@ The logs will be stored in **db/pytest_logs.txt**
 
 ### 5. CLI Interface
 - Unified command-line interface using `argparse`
-- Subcommands: `simulate`, `analyze`, `risk`
+- Subcommands: `simulate`, `analyze`, `download`, `validate`
 - Modular and easy-to-use workflow
 
 ---
