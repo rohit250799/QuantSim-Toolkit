@@ -95,7 +95,7 @@ have downloaded. The validation will be performed and the logs will be displayed
 
 ![Running unit tests with pytest](screenshots/running_unit_tests.png)
 
-The logs will be stored in **db/pytest_logs.txt**
+The logs will be stored in **logs/errors.log**
 
 ![Unit test logs](screenshots/unit_test_logs.png)
 

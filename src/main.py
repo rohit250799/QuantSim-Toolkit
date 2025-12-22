@@ -1,6 +1,7 @@
 import logging
 import argparse
-from typing import Callable, Dict, Any
+from pathlib import Path    
+from typing import Any
 
 from src.cli.parser import build_parser
 from src.cli.commands.analyze import run_analyze
@@ -11,16 +12,26 @@ from src.data_loader.data_loader import DataLoader
 from src.circuit_breaker import CircuitBreaker
 from src.data_validator import DataValidator
 from src.flow_controller import FlowController
+from src.logging_config import configure_logging
 from db.database import get_prod_conn, PROD_DB_PATH
 
 
+LOG_DIR = Path("logs")
+LOG_DIR.mkdir(exist_ok=True)
+LOG_FORMAT = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+
 logging.basicConfig(
-    filename='logs/main_file_logs.txt', level=logging.DEBUG,
-    format=' %(asctime)s -  %(levelname)s -  %(message)s'
+    filename=LOG_DIR / "app.log",
+    level=logging.DEBUG,
+    format=LOG_FORMAT
 )
 
 def main() -> None:
     """Main function for the project - serves as the main entry point of execution"""
+    configure_logging()
+    logger = logging.getLogger("app")
+    logger.info("Starting Application...\n")
+
     print('Quantsim-Toolkit - running main pipeline...\n')
     conn = get_prod_conn(PROD_DB_PATH)
     data_loader = DataLoader(conn)

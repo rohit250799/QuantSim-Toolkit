@@ -8,8 +8,7 @@ from typing import Any, Dict, cast
 import pandas as pd
 import numpy as np
 
-logging.basicConfig(filename='logs/main_file_logs.txt', level=logging.DEBUG, 
-                    format=' %(asctime)s -  %(levelname)s -  %(message)s')
+logger = logging.getLogger("analyze")
 
 def get_stock_name() -> str:
     stock_name = input('Enter the stock name: ')

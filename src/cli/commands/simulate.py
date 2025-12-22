@@ -1,5 +1,10 @@
 import argparse
+import logging
+
 from src.modules.probability import display_distribution_table, display_multiple_dice_simulation_parameters
+
+logger = logging.getLogger("cli")
+
 
 def run_simulate(args: argparse.Namespace) -> None:
     object_type = args.objectType

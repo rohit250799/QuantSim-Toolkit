@@ -9,8 +9,7 @@ import logging
 import requests
 from datetime import datetime
 
-logging.basicConfig(filename='logs/flow_controller_logs.txt', level=logging.DEBUG, 
-                    format=' %(asctime)s -  %(levelname)s -  %(message)s')
+logger = logging.getLogger("flow")
 
 class FlowController:
     def __init__(self, data_loader: DataLoader, circuit_breaker: CircuitBreaker, data_validator: DataValidator) -> None:
@@ -25,9 +24,9 @@ class FlowController:
         """
         try:
             df = pd.read_csv(f'{mock_file_path}/{ticker}_id.csv')
-            logging.info('CSV successfully loaded into dataframe from handle_validation_test function. ')
+            logger.info('CSV successfully loaded into dataframe from handle_validation_test function. ')
         except FileNotFoundError:
-            logging.debug('File not found in your path. Check your path again!')
+            logger.debug('File not found in your path. Check your path again!')
             raise
         else:
             df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
@@ -35,8 +34,8 @@ class FlowController:
             clean_and_valid_data = self.data_validator.validate_and_clean(ticker, df)
             validation_logs = self.data_loader.get_validation_log(ticker)
 
-            logging.debug('The dataframe with clean and valid data is: \n%s', clean_and_valid_data)
-            logging.debug('The validation logs are: \n%s', validation_logs)
+            logger.debug('The dataframe with clean and valid data is: \n%s', clean_and_valid_data)
+            logger.debug('The validation logs are: \n%s', validation_logs)
 
         return 
     
@@ -57,28 +56,28 @@ class FlowController:
         try:
             circuit_state = self.circuit_breaker.check_circuit_state(ticker)
         except CircuitOpenStateError as e:
-            logging.debug('Insode the handle download request function body, circuit open state error has occured')
-            logging.info('Since circuit is open, terminating the request and returning. Error: %s', e)
+            logger.debug('Insode the handle download request function body, circuit open state error has occured')
+            logger.info('Since circuit is open, terminating the request and returning. Error: %s', e)
             return
         #except 
         else:
-            logging.info('The circuit state from handle download request function is: %s', circuit_state)
+            logger.info('The circuit state from handle download request function is: %s', circuit_state)
             pd_end_date = pd.Timestamp(end_date)
             pd_start_date = pd.Timestamp(start_date)
-            logging.info('The end date unix is: %s and the start date unix is: %s', pd_end_date, pd_start_date)
+            logger.info('The end date unix is: %s and the start date unix is: %s', pd_end_date, pd_start_date)
             
             api_adapter = ApiAdapter()
             try:
                 api_call_data = api_adapter.fetch_data(ticker, pd_start_date, pd_end_date)
-                logging.debug('The api call returned data in handle download request is: \n%s', api_call_data)
+                logger.debug('The api call returned data in handle download request is: \n%s', api_call_data)
             except (ConnectionAbortedError, ConnectionError, ConnectionRefusedError, TimeoutError, requests.exceptions.HTTPError) as e:
-                logging.debug('Inside the handle download request function, the api call has failed. Error: %s', e)
+                logger.debug('Inside the handle download request function, the api call has failed. Error: %s', e)
                 current_timestamp = int(datetime.now().timestamp())
                 self.circuit_breaker.handle_failure(ticker, current_timestamp=current_timestamp)
                 return
             else:
                 if api_call_data is None:
-                    logging.debug(
+                    logger.debug(
                         "API call succeeded but returned no data for ticker %s", ticker
                     )
                     current_timestamp = int(datetime.now().timestamp())
@@ -87,7 +86,7 @@ class FlowController:
                     )
                     return
                 clean_data = self.data_validator.validate_and_clean(ticker, df=api_call_data)
-                logging.debug('The data as param in validate and clean, as dataframe is: \n%s', api_call_data)
+                logger.debug('The data as param in validate and clean, as dataframe is: \n%s', api_call_data)
                 self.data_loader.insert_daily_data(ticker=ticker, df=clean_data)
         return
 

@@ -3,10 +3,10 @@ import argparse
 
 from src.flow_controller import FlowController
 
-logging.basicConfig(filename='logs/main_file_logs.txt', level=logging.DEBUG,
-                    format=' %(asctime)s -  %(levelname)s -  %(message)s')
+logger = logging.getLogger("cli")
 
 def run_validation(args: argparse.Namespace, fc: FlowController) -> None:
+    """Runs validation check"""
     logging.debug('Entering the run validation function block')
     ticker = args.tName
     file_path = args.mPath

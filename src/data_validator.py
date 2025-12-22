@@ -6,9 +6,7 @@ from datetime import datetime, timezone
 from src.data_loader.data_loader import DataLoader
 from src.quant_enums import ValidationIssueType
 
-logging.basicConfig(filename='logs/circuit_breaker_logs.txt', level=logging.DEBUG, 
-                    format=' %(asctime)s -  %(levelname)s -  %(message)s')
-
+logger = logging.getLogger("validation")
 class DataValidator:
     def __init__(self, data_loader: DataLoader):
         self.data_loader = data_loader
@@ -27,7 +25,7 @@ class DataValidator:
             df.index = df.index.tz_localize("UTC")
         df['daily_returns'] = df['close'].pct_change()
         self.data_loader.delete_unresolved_validation_log(ticker)
-        logging.debug('The dataframe is: \n%s', df)
+        logger.debug('The dataframe is: \n%s', df)
         self._check_gaps(ticker, df)
         self._check_outliers(ticker, df)
         self._check_stale(ticker, df)
@@ -42,17 +40,17 @@ class DataValidator:
         """
         data_loader = self.data_loader
         if df.empty:
-            logging.debug('Empty dataframe passed to check gaps function. So, skipping the validation check')
+            logger.debug('Empty dataframe passed to check gaps function. So, skipping the validation check')
             raise pd.errors.EmptyDataError('Empty dataframe was supplied as a parameter')
         start_date = df.index[0]
         end_date = df.index[-1]
-        logging.debug('The start and end dates are: %s and %s', start_date, end_date)
+        logger.debug('The start and end dates are: %s and %s', start_date, end_date)
 
         all_business_dates = pd.date_range(start=start_date, end=end_date, freq='B')
         all_unique_dates = pd.DatetimeIndex(df.index).normalize().unique()
         
         missing_days = set(all_business_dates) - set(all_unique_dates)
-        logging.debug('The missing days are: %s', missing_days)
+        logger.debug('The missing days are: %s', missing_days)
 
         for day in missing_days:
             date_string = day.isoformat()
@@ -65,10 +63,10 @@ class DataValidator:
         Calculates daily percentage returns. Flags any return exceeding 5 standard deviations (5SD) of the entire series.
         """
         mean_daily_return = df['daily_returns'].mean()
-        logging.info('The mean daily return is: %f', mean_daily_return)
+        logger.info('The mean daily return is: %f', mean_daily_return)
 
         daily_returns_standard_deviation = df['daily_returns'].std()
-        logging.info('The standard deviation in closing prices is: %f', daily_returns_standard_deviation)
+        logger.info('The standard deviation in closing prices is: %f', daily_returns_standard_deviation)
 
         five_standard_deviation = 5 * daily_returns_standard_deviation
         upper_bound_in_five_standard_deviation = mean_daily_return + five_standard_deviation
@@ -80,7 +78,7 @@ class DataValidator:
 
         outlier_issue = ValidationIssueType.OUTLIER_5SD.value
         for timestamp_idx in triggered_indices:
-            logging.debug('The timestamp_idx is: %s and the datatype is: %s', timestamp_idx, type(timestamp_idx))
+            logger.debug('The timestamp_idx is: %s and the datatype is: %s', timestamp_idx, type(timestamp_idx))
             date_string = timestamp_idx.isoformat()
 
             self.data_loader.insert_validation_issue(ticker=ticker, date=date_string, issue_type=outlier_issue, description='Outlier issue: Return exceeds 5 standard deviation(5SD)')

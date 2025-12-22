@@ -7,8 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 PROD_DB_PATH = "db/quantsim.db"
 
-logging.basicConfig(filename='logs/db_logs.txt', level=logging.DEBUG, 
-                    format=' %(asctime)s -  %(levelname)s -  %(message)s')
+logger = logging.getLogger("db")
 
 def init_db(db_path: str = PROD_DB_PATH) -> None:
     """Initialize the database and create directories if necessary"""

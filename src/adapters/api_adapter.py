@@ -5,10 +5,7 @@ import time
 import requests
 from typing import Dict, cast, Any
 
-logging.basicConfig(
-    filename='logs/api_response_logs.txt', level=logging.DEBUG,
-    format=' %(asctime)s -  %(levelname)s -  %(message)s'
-)
+logger = logging.getLogger("market_data")
 
 class ApiAdapter:
     """

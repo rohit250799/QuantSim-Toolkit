@@ -27,8 +27,7 @@ from db.db_queries import (
     delete_validation_log
 )
 
-logging.basicConfig(filename='logs/db_operations_logs.txt', level=logging.DEBUG,
-                    format=' %(asctime)s -  %(levelname)s -  %(message)s')
+logger = logging.getLogger("db")
 
 class DataLoader:
     """
@@ -50,7 +49,7 @@ class DataLoader:
         tables = cursor.fetchall()
 
         for table in tables:
-            logging.debug('Table name: %a', table[0])
+            logger.debug('Table name: %a', table[0])
         
         return
 
@@ -68,12 +67,12 @@ class DataLoader:
             cursor.execute(system_config_table_creation_query)
             conn.commit()
         except sqlite3.Error as e:
-            logging.debug('An error occured: %s', e)
+            logger.debug('An error occured: %s', e)
             conn.rollback()
         
         else:
             last_record = cursor.fetchone()
-            logging.debug('Records %s inserted in the price_data table', last_record)
+            logger.debug('Records %s inserted in the price_data table', last_record)
             self.insert_log_entry(level=LogLevel.INFO.value, source='Data loader module', message='Inserting records into price_data table')
 
     def initialize_circuit_state(self, ticker: str) -> None:
@@ -91,7 +90,7 @@ class DataLoader:
 
         cursor.execute(record_circuit_state_initialization_query, (ticker, initial_state, initial_failure_count, initial_last_fail_time, initial_cooldown_end_time))
         #record = cursor.fetchone()
-        logging.debug('The current record of the ticker is: %s', execute_query(conn, "select * from circuit_breaker_states where ticker = ?", (ticker, )))
+        logger.debug('The current record of the ticker is: %s', execute_query(conn, "select * from circuit_breaker_states where ticker = ?", (ticker, )))
         return
     
     def _get_all_values_from_circuit_breaker_states(self, ticker: str) -> None:
@@ -102,7 +101,7 @@ class DataLoader:
         all_records = cursor.fetchall()
 
         for record in all_records:
-            logging.debug('The current record is: %s', record)
+            logger.debug('The current record is: %s', record)
 
         return
 
@@ -131,13 +130,13 @@ class DataLoader:
             cursor.execute(system_logs_table_record_query, (unix_timestamp_value, level_value, source_value, message_value, ticker_value, api_status_code_value, response_time_ms_value))
             conn.commit()
         except sqlite3.Error as e:
-            logging.debug('An error occured: %s', e)
+            logger.debug('An error occured: %s', e)
             raise ValueError('Error raised in record insertion: %s. Please fix it first.', e)
         else:
             last_record_id = cursor.lastrowid
             cursor.execute("select * from system_logs where id = ?", (last_record_id, )) 
             last_record = cursor.fetchone()
-            logging.info('Record: %s has been successfully inserted into the db in system_logs table', last_record)
+            logger.info('Record: %s has been successfully inserted into the db in system_logs table', last_record)
             return
 
     def get_historical_data(self, ticker: str, start_ts: int, end_ts: int) -> pd.DataFrame:
@@ -187,18 +186,18 @@ class DataLoader:
                     index=False
                 )
 
-                logging.info(
+                logger.info(
                     "Inserted %d rows for %s into price_data",
                     len(df_to_insert),
                     ticker
                 )
 
         except sqlite3.Error as e:
-            logging.error("Database insertion failed: %s", e)
+            logger.error("Database insertion failed: %s", e)
             raise ValueError("Error raised during database insertion")
         
         else:
-            logging.info('Dataframe inserted successfully!')
+            logger.info('Dataframe inserted successfully!')
             return
 
     def get_circuit_state(self, ticker: str) -> Any:
@@ -213,7 +212,7 @@ class DataLoader:
         try:
             cursor.execute("select * from circuit_breaker_states where ticker = ?", (ticker, ))
             row = cursor.fetchone()
-            logging.debug('tHe value returned from get circuit state is: %s', row[1])
+            logger.debug('tHe value returned from get circuit state is: %s', row[1])
             if row is None:
                 raise LookupError(f'No circuit state found for ticker: {ticker}')
             #state_str = row[1]
@@ -229,7 +228,7 @@ class DataLoader:
         conn = self.prod_db_connection
         cursor = conn.cursor()
         cursor.execute(set_circuit_state_query, (state, failure_count, last_fail_time, cooldown_end_time))
-        logging.debug('The state of the ticker has been changed. The current ticker record: %s', execute_query(conn, "select * from circuit_breaker_states where ticker = ?", (ticker, )))
+        logger.debug('The state of the ticker has been changed. The current ticker record: %s', execute_query(conn, "select * from circuit_breaker_states where ticker = ?", (ticker, )))
         return
 
     def insert_validation_issue(self, ticker: str, date: str, issue_type: str, description: str) -> None:
@@ -243,10 +242,10 @@ class DataLoader:
         try:
             conn.execute(insert_triggered_indices_in_validation_log_query, (ticker, date, issue_type, description))
         except sqlite3.Error as e:
-            logging.debug('An error has occured: %s', e)
+            logger.debug('An error has occured: %s', e)
             raise
         else:
-            logging.info('Data quality failure has been successfully inserted in the validation_log table')
+            logger.info('Data quality failure has been successfully inserted in the validation_log table')
         return
 
     def insert_asset_metadata(self, ticker: str, data: Dict[str, Any]) -> None:
@@ -255,7 +254,7 @@ class DataLoader:
         """
         timestamp = datetime.now(ZoneInfo('Asia/Kolkata'))
         unix_timestamp_value = int(timestamp.timestamp())
-        logging.info('Inserting or updating into symbols table!')
+        logger.info('Inserting or updating into symbols table!')
         conn = self.prod_db_connection
         cursor = conn.cursor()
         company_name = data['company_name'] if data['company_name'] else None
@@ -266,7 +265,7 @@ class DataLoader:
         cursor.execute(insert_or_update_record_in_symbols_table_query, (ticker, company_name, exchange, sector, currency, unix_timestamp_value))
 
         inserted_or_updated_record = execute_query(conn=conn, query="select * from symbols where ticker = ?", params=(ticker, ))
-        logging.debug('The inserted or updated record is: %s', inserted_or_updated_record)
+        logger.debug('The inserted or updated record is: %s', inserted_or_updated_record)
 
         return
     

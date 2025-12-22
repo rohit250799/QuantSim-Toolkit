@@ -12,8 +12,7 @@ import pandas as pd
 import logging
 import argparse
 
-logging.basicConfig(filename='logs/main_file_logs.txt', level=logging.DEBUG,
-                    format=' %(asctime)s -  %(levelname)s -  %(message)s')
+logger = logging.getLogger("cli")
 
 # We can perform analysis on fetch values from the CSV file for analysis. For now, loading
 # the CSV file all at once. Later, will create another feature which will use generator to load
