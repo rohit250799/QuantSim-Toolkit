@@ -22,7 +22,7 @@ class DataValidator:
         Returns: original Dataframe
         """
         if not isinstance(df.index, pd.DatetimeIndex):
-            raise TypeError("DataFrame must be indexed by DatetimeIndex")
+            raise TypeError(f"Expected DatetimeIndex, got {type(df.index).__name__}. Ensure date column is parsed and set as index.")
         if df.index.tz is None:
             df.index = df.index.tz_localize("UTC")
         df['daily_returns'] = df['close'].pct_change()
@@ -34,7 +34,7 @@ class DataValidator:
 
         return df
 
-    def _check_gaps(self, ticker: str, df: pd.DataFrame):
+    def _check_gaps(self, ticker: str, df: pd.DataFrame) -> None:
         """
         Identifies non-sequential timestamps (compares days actually present in the df against the days that the market should have 
         been open). Its assumed, that dataframe is already sorted and indexed by time
@@ -49,18 +49,18 @@ class DataValidator:
         logging.debug('The start and end dates are: %s and %s', start_date, end_date)
 
         all_business_dates = pd.date_range(start=start_date, end=end_date, freq='B')
-        all_unique_dates = df.index.normalize().unique()
+        all_unique_dates = pd.DatetimeIndex(df.index).normalize().unique()
         
         missing_days = set(all_business_dates) - set(all_unique_dates)
         logging.debug('The missing days are: %s', missing_days)
 
         for day in missing_days:
-            unix_int_day = int(day.timestamp())
-            data_loader.insert_validation_issue(ticker, unix_int_day, ValidationIssueType.MISSING_DAY.value, "Missing OHLCV data for this trading day")
+            date_string = day.isoformat()
+            data_loader.insert_validation_issue(ticker, date_string, ValidationIssueType.MISSING_DAY.value, "Missing OHLCV data for this trading day")
 
         return
 
-    def _check_outliers(self, ticker: str, df: pd.DataFrame):
+    def _check_outliers(self, ticker: str, df: pd.DataFrame) -> None:
         """
         Calculates daily percentage returns. Flags any return exceeding 5 standard deviations (5SD) of the entire series.
         """
@@ -81,13 +81,13 @@ class DataValidator:
         outlier_issue = ValidationIssueType.OUTLIER_5SD.value
         for timestamp_idx in triggered_indices:
             logging.debug('The timestamp_idx is: %s and the datatype is: %s', timestamp_idx, type(timestamp_idx))
-            unix_date = int(timestamp_idx.timestamp())
+            date_string = timestamp_idx.isoformat()
 
-            self.data_loader.insert_validation_issue(ticker=ticker, date=unix_date, issue_type=outlier_issue, description='Outlier issue: Return exceeds 5 standard deviation(5SD)')
+            self.data_loader.insert_validation_issue(ticker=ticker, date=date_string, issue_type=outlier_issue, description='Outlier issue: Return exceeds 5 standard deviation(5SD)')
 
         return
 
-    def _check_stale(self, ticker: str, df: pd.DataFrame):
+    def _check_stale(self, ticker: str, df: pd.DataFrame) -> None:
         """
         Detects and logs if 5 consecutive closing prices are identical AND volume is 0
         """
@@ -105,7 +105,7 @@ class DataValidator:
         if not stale_rows.empty:
             for ts in stale_rows.index:
                 ts = ts.tz_localize("UTC") if ts.tzinfo is None else ts
-                unix_date = int(ts.timestamp())
+                unix_date = ts.isoformat()
                 self.data_loader.insert_validation_issue(ticker, unix_date, issue_type, "Stale data has been detected")
 
         return
