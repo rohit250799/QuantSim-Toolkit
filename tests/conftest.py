@@ -2,6 +2,7 @@ import pytest
 import sqlite3
 import pandas as pd
 import numpy as np
+
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from typing import Generator, Any, Tuple
@@ -27,11 +28,11 @@ def make_price_data_row(ticker: str = 'TCS', timestamp: int = unix_timestamp_val
     """A record for price_data table to test with"""
     return (ticker, timestamp, open, close, high, low, volume)
 
-def make_open_circuit_breaker_state_table_row(ticker: str = 'TCS', state: Circuit_State = Circuit_State.OPEN.value, failure_count: int = 5, last_fail_time: int = unix_timestamp_value, cooldown_end_time: int = cooldown_end_time_unix):
+def make_open_circuit_breaker_state_table_row(ticker: str = 'TCS', state: str = Circuit_State.OPEN.value, failure_count: int = 5, last_fail_time: int = unix_timestamp_value, cooldown_end_time: int = cooldown_end_time_unix) -> Tuple[str, str, int, int, int]:
     """A record for open circuit state to test with"""
     return (ticker, state, failure_count, last_fail_time, cooldown_end_time)
 
-def make_closed_circuit_breaker_state_table_row(ticker: str = 'INFY', state: Circuit_State = Circuit_State.CLOSED.value, failure_count: int = 0, last_fail_time: int | None = None, cooldown_end_time: int | None = None):
+def make_closed_circuit_breaker_state_table_row(ticker: str = 'INFY', state: str = Circuit_State.CLOSED.value, failure_count: int = 0, last_fail_time: int | None = None, cooldown_end_time: int | None = None) -> Tuple[str, str, int, int | None, int | None]:
     """A record for open circuit state to test with"""
     return (ticker, state, failure_count, last_fail_time, cooldown_end_time)
 
@@ -179,7 +180,7 @@ def tcs_test_data(fresh_db_cursor: sqlite3.Cursor) -> pd.DataFrame:
     df['close'] = df['close'].astype(np.float32) 
     return df
 
-def fetch_scalar(conn, query, params):
+def fetch_scalar(conn: sqlite3.Connection, query: str, params: Tuple[Any]) -> Any:
     """A helper function to fetch specific data from the db table"""
     rows = execute_query(conn, query, params)
     if len(rows) != 1:

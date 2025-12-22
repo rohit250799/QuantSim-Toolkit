@@ -1,4 +1,6 @@
 import logging
+import argparse
+from typing import Callable, Dict, Any
 
 from src.cli.parser import build_parser
 from src.cli.commands.analyze import run_analyze
@@ -24,10 +26,10 @@ def main() -> None:
     data_loader = DataLoader(conn)
     circuit_breaker = CircuitBreaker(data_loader)
     data_validator = DataValidator(data_loader)
-    flow_controller = FlowController(data_loader, circuit_breaker, data_validator)
+    flow_controller: FlowController = FlowController(data_loader, circuit_breaker, data_validator)
 
     parser = build_parser()
-    args = parser.parse_args()
+    args: argparse.Namespace = parser.parse_args()
 
     dispatch = {
         "analyze": run_analyze,
@@ -36,7 +38,7 @@ def main() -> None:
         "validate":  run_validation
     }
 
-    handler = dispatch.get(args.command)
+    handler: Any | None = dispatch.get(args.command)
     if handler is None:
         raise ValueError(f'Unknown command: {args.command}')
     handler(args, flow_controller)

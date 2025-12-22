@@ -20,7 +20,7 @@ class ApiAdapter:
         self.api_key: str = os.environ.get('ALPHA_VANTAGE_API_KEY', 'key not found')
         self.base_url: str = 'https://www.alphavantage.co'
 
-    def _api_call_with_retry(self, symbol: str, params: dict | None):
+    def _api_call_with_retry(self, symbol: str, params: Dict[str, Any] | None) -> Dict[str, Any] | None:
         """
         Returns: a dict containing the raw JSON response on success or None if the exhaustion point is reached without a successful
         response from the API call
@@ -40,7 +40,7 @@ class ApiAdapter:
                 if "Error Message" in api_calling_response.text:
                     logging.debug('The error is: %s', api_calling_response.text)
                     logging.debug('Error in API response. Please check your parameters again')
-                    return 
+                    return None
                 elif "Note" in api_calling_response.text:
                     logging.debug('The error is: %s', api_calling_response.text)                
                     logging.info('Soft rate limit')
@@ -65,9 +65,9 @@ class ApiAdapter:
                 time.sleep(wait_time)
                 current_trial_number += 1
         logging.debug('5 attempts have been used. Returning None')
-        return
+        return None
 
-    def fetch_data(self, ticker: str, start_date: pd.Timestamp, end_date: pd.Timestamp):
+    def fetch_data(self, ticker: str, start_date: pd.Timestamp, end_date: pd.Timestamp) -> pd.DataFrame | None:
         """
         Acts as the sanitizer in the system. It calls the _api_call_with_retry function (procurement logic) and if proper data is returned from the 
         API response in a Dict format, it converts the dict into a pandas DataFrame with the timestamp as dateindex.
@@ -79,7 +79,7 @@ class ApiAdapter:
         api_call_with_retry_result = self._api_call_with_retry(symbol=ticker, params=None)
         if not api_call_with_retry_result:
             logging.info('In fetch data function, the api call with retry returned Falsy values. So, we return None')
-            return
+            return None
         logging.debug('The api call with retry result in fetch data is: %s', api_call_with_retry_result)
         ts = api_call_with_retry_result.get('Time Series (Daily)')
         if not ts:

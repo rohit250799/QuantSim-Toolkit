@@ -4,6 +4,8 @@ from src.modules.analytics.returns_analyzer import (
     #calculate_daily_portfolio_returns,
     calculate_daily_returns
 )
+from src.flow_controller import FlowController
+
 from typing import List
 from pathlib import Path
 import pandas as pd
@@ -17,7 +19,7 @@ logging.basicConfig(filename='logs/main_file_logs.txt', level=logging.DEBUG,
 # the CSV file all at once. Later, will create another feature which will use generator to load
 # CSV file in chunks if the dataset is large 
 
-def run_analyze(args: argparse.Namespace) -> None:
+def run_analyze(args: argparse.Namespace, flow_controller: FlowController | None) -> None:
     logging.debug('Entered the run analyze function block!')
     stock_symbol = args.symbol
     stock_csv_file_path = 'src/data/'

@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from db.database import execute_query
@@ -11,6 +11,9 @@ from src.custom_errors import CircuitOpenStateError
 
 logging.basicConfig(filename='logs/circuit_breaker_logs.txt', level=logging.DEBUG, 
                     format=' %(asctime)s -  %(levelname)s -  %(message)s')
+
+current_timestamp = int(datetime.now().timestamp())
+
 
 class CircuitBreaker:
 
@@ -45,7 +48,7 @@ class CircuitBreaker:
             return True
             
         
-    def handle_failure(self, ticker: str, consecutive_failures: int, current_timestamp: int) -> None:
+    def handle_failure(self, ticker: str, consecutive_failures: int = 3, current_timestamp: int = current_timestamp) -> None:
         """
         Handles failure of the API call, based on the threshold for failure.
         If failure count exceeds threshold in a specified time (5 minutes in this case) - the circuit state transitions to Open. Else, it remains Closed.
@@ -54,7 +57,7 @@ class CircuitBreaker:
             logging.info('Consecutive API calls failed > 3 times for the ticker: %s in 5 minutes. So, opening the circuit for 1 hour.', ticker)
             # current_time = datetime.now(ZoneInfo("Asia/Kolkata"))
             # current_time_unix = int(current_time.timestamp())
-            current_timestamp_dt = datetime.fromtimestamp(current_timestamp, datetime.time)
+            current_timestamp_dt = datetime.fromtimestamp(current_timestamp, tz=timezone.utc)
             one_hour_later_timestamp = current_timestamp_dt + timedelta(hours=1)
             one_hour_later_timestamp_unix = int(one_hour_later_timestamp.timestamp())
             self._data_loader.set_circuit_state(ticker=ticker, state=Circuit_State.OPEN.value, failure_count=consecutive_failures, last_fail_time=current_timestamp, cooldown_end_time=one_hour_later_timestamp_unix)
@@ -83,7 +86,7 @@ class CircuitBreaker:
         return
         
 
-    def reset_circuit_breaker(self, ticker: str):
+    def reset_circuit_breaker(self, ticker: str) -> None:
         """
         Handles transition from Open to Half Open when the cooldown time has expired
         """

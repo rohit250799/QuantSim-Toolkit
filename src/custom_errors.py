@@ -33,7 +33,7 @@ class TableDoesNotExistError(Exception):
 class CircuitOpenStateError(Exception):
     """Exceotion raised when the current state of a circuit is Open, so no API calls allowed"""
 
-    def __init__(self, message):
+    def __init__(self, message: Optional[str]) -> None:
         super().__init__(message)
         self.message = message
 

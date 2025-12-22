@@ -3,6 +3,7 @@ from sqlite3 import Connection
 import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from typing import Tuple, Any, Dict
 
 import pandas as pd
 import numpy as np
@@ -40,7 +41,7 @@ class DataLoader:
         self.prod_db_connection = db_conn if db_conn is not None else get_prod_conn()
         #self._run_migrations()
 
-    def get_all_existing_tables(self):
+    def get_all_existing_tables(self) -> Any:
         """Get the names of all the existing tables in the db"""
         conn = self.prod_db_connection
         cursor = conn.cursor()
@@ -53,7 +54,7 @@ class DataLoader:
         
         return
 
-    def _run_migrations(self):
+    def _run_migrations(self) -> None:
         """Handles one-time cleanup and schema creation"""
         conn = self.prod_db_connection
         try:
@@ -75,7 +76,7 @@ class DataLoader:
             logging.debug('Records %s inserted in the price_data table', last_record)
             self.insert_log_entry(level=LogLevel.INFO.value, source='Data loader module', message='Inserting records into price_data table')
 
-    def initialize_circuit_state(self, ticker):
+    def initialize_circuit_state(self, ticker: str) -> None:
         """
         Guarantees a default CLOSED entry for a new ticker
         Attempts to initialize a circuit breaker states record with CLOSED state. Does nothing if the record already exists. 
@@ -93,7 +94,7 @@ class DataLoader:
         logging.debug('The current record of the ticker is: %s', execute_query(conn, "select * from circuit_breaker_states where ticker = ?", (ticker, )))
         return
     
-    def _get_all_values_from_circuit_breaker_states(self, ticker):
+    def _get_all_values_from_circuit_breaker_states(self, ticker: str) -> None:
         conn = self.prod_db_connection
         #self.initialize_circuit_state(ticker=ticker)
         cursor = conn.cursor()
@@ -105,7 +106,7 @@ class DataLoader:
 
         return
 
-    def insert_log_entry(self, level: LogLevel, source: str, message: str, **kwargs):
+    def insert_log_entry(self, level: str, source: str, message: str, **kwargs: Dict[str, Any]) -> None:
         """Insert logs into the system_logs table for every database operation"""
         conn = self.prod_db_connection
         timestamp = datetime.now(ZoneInfo("Asia/Kolkata"))
@@ -151,7 +152,7 @@ class DataLoader:
         historical_data_dataframe.set_index('timestamp', inplace=True)
         return historical_data_dataframe
 
-    def insert_daily_data(self, ticker: str, df: pd.DataFrame):
+    def insert_daily_data(self, ticker: str, df: pd.DataFrame) -> None:
         """
         Primary data storage method
         Converts DataFrame dates to UTC UNIX Epoch integers. Inserts data into price_data table
@@ -168,7 +169,9 @@ class DataLoader:
         
         # Create epoch column WITHOUT destroying index
         df_to_insert = df.copy()
-        df_to_insert["timestamp"] = (ts_index.view("int64") // 10**9).astype("int64")
+        #df_to_insert["timestamp"] = (ts_index.to_numpy().view("int64") // 10**9).astype("int64")
+        df_to_insert["timestamp"] = (ts_index.astype("int64") // 10**9).astype("int64")
+
         df_to_insert["ticker"] = ticker
 
         df_to_insert = df_to_insert[
@@ -198,7 +201,7 @@ class DataLoader:
             logging.info('Dataframe inserted successfully!')
             return
 
-    def get_circuit_state(self, ticker: str):
+    def get_circuit_state(self, ticker: str) -> Any:
         """
         Reads the current API status
         Fetches the state from circuit_breaker_states and converts the stored string back into the Python CircuitState Enum before returning
@@ -218,7 +221,7 @@ class DataLoader:
         finally:
             cursor.close()
 
-    def set_circuit_state(self, ticker: str, state: Circuit_State, failure_count: int | None, last_fail_time: int | None, cooldown_end_time: int | None):
+    def set_circuit_state(self, ticker: str, state: str, failure_count: int | None, last_fail_time: int | None, cooldown_end_time: int | None) -> None:
         """
         Updates the API status. 
         Inserts/Updates the record in circuit_state using the Enum's explicit string value.
@@ -229,7 +232,7 @@ class DataLoader:
         logging.debug('The state of the ticker has been changed. The current ticker record: %s', execute_query(conn, "select * from circuit_breaker_states where ticker = ?", (ticker, )))
         return
 
-    def insert_validation_issue(self, ticker, date, issue_type, description):
+    def insert_validation_issue(self, ticker: str, date: str, issue_type: str, description: str) -> None:
         """
         Logs data quality failures
         Inserts into the validation_log table, converting the IssueType Enum to its explicit string value.
@@ -246,7 +249,7 @@ class DataLoader:
             logging.info('Data quality failure has been successfully inserted in the validation_log table')
         return
 
-    def insert_asset_metadata(self, ticker: str, data: dict):
+    def insert_asset_metadata(self, ticker: str, data: Dict[str, Any]) -> None:
         """
         Used to insert or update a record in the symbols table
         """
@@ -276,7 +279,7 @@ class DataLoader:
         all_validation_logs = pd.read_sql_query(sql=get_all_entries_of_ticker_from_validation_log_table_query, con=conn, params=(ticker, ))
         return all_validation_logs
 
-    def delete_unresolved_validation_log(self, ticker: str):
+    def delete_unresolved_validation_log(self, ticker: str) -> None:
         """
         Fixes the multiple entries for the same date problem by implementing a Pre-Validation Cleanup inside the validate_and_clean 
         orchestrator. It first deletes any existing validation issues for that specific ticker that have not been resolved, before data
@@ -285,6 +288,7 @@ class DataLoader:
         conn = self.prod_db_connection
         cursor = conn.cursor()
         cursor.execute(delete_validation_log, (ticker, ))
+        return
 
 
 # my_dl = DataLoader()
