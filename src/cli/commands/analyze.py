@@ -5,6 +5,8 @@ from src.modules.analytics.returns_analyzer import (
     calculate_daily_returns
 )
 from src.flow_controller import FlowController
+from src.custom_errors import EmptyRecordReturnError
+from src.analysis_module import AnalysisModule
 
 from typing import List
 from pathlib import Path
@@ -20,16 +22,11 @@ logger = logging.getLogger("cli")
 
 def run_analyze(args: argparse.Namespace, flow_controller: FlowController | None) -> None:
     logging.debug('Entered the run analyze function block!')
-    stock_symbol = args.symbol
-    stock_csv_file_path = 'src/data/'
-    stock_csv_file_name = f'{stock_symbol}_id.csv'
+    input_ticker = args.ticker
+    input_benchmark = args.benchmark if args.benchmark else 'NIFTY50_id.csv'
 
-    file_path = Path(stock_csv_file_path) / stock_csv_file_name
-    stock_csv_file_dataframe = read_all_csv_data(stock_symbol)
-    logging.debug('The stock symbol is: %s', stock_symbol)
+    flow_controller.dispatch_analysis_request(input_ticker, input_benchmark, args.startDate, args.endDate)
     
-    logging.debug('Stock CSV File found in path. Starting the analysis')
-    file_data = read_all_csv_data(stock_symbol=stock_symbol)
-    result = summarize_returns(stock_csv_file_dataframe)
-    print(result)
     return
+
+
