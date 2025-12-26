@@ -8,7 +8,7 @@ from typing import Any, Dict, cast
 import pandas as pd
 import numpy as np
 
-logger = logging.getLogger("analyze")
+logger = logging.getLogger("analytics")
 
 def get_stock_name() -> str:
     stock_name = input('Enter the stock name: ')
@@ -70,41 +70,70 @@ def read_all_csv_data(stock_symbol: str) -> pd.DataFrame:
         df = pd.read_csv(file_path, usecols=['timestamp', 'close'], dtype=np.float32,  parse_dates=['timestamp'], index_col=['timestamp'])
         df = df.sort_index()
         return df
+
+def calculate_log_returns(df: pd.DataFrame):
+    "Calculates the log returns of closing prices from the dataframe"
+    price_columns = ['ticker_close', 'benchmark_close']
+    return_cols = [col + '_log_return' for col in price_columns]
+    df[return_cols] = np.log(df[price_columns] / df[price_columns].shift(1))
+    logger.info('The updated dataframe with log returns is: \n%s', df)
+    return
+
+def calculate_cummulative_returns(df: pd.DataFrame):
+    """Calculates and returns the commulative returns of the stock over the entire period"""
+    ticker_initial_price = df['ticker_close'].iloc[0]
+    ticker_final_price = df['ticker_close'].iloc[-1]
+
+    benchmark_initial_point = df['benchmark_close'].iloc[0]
+    benchmark_final_point = df['benchmark_close'].iloc[-1]
+
+    ticker_cummulative_return = (ticker_final_price / ticker_initial_price - 1)
+    benchmark_cummulative_return = (benchmark_final_point / benchmark_initial_point - 1)
+    return (ticker_cummulative_return, benchmark_cummulative_return)
+
+def calculate_volatility(df: pd.DataFrame):
+    """
+    Calculates the Standard Deviation of the ticker's daily returns and returns its annualized value
+    """
     
-def perform_data_validation(df: pd.DataFrame) -> pd.Series:
-    """
-    All data validation is performed here and then the clean data is used for all the calculations and analysis
-    """
+    pass
 
-    if "close" not in df.columns:
-        raise KeyError("Input DataFrame must contain a 'close' column")
+#def 
+    
+# def perform_data_validation(df: pd.DataFrame) -> pd.Series:
+#     """
+#     All data validation is performed here and then the clean data is used for all the calculations and analysis
+#     """
 
-    cleaned = df.loc[
-        (df["close"] > 0)
-        & (df["close"].notna())
-        & (np.isfinite(df["close"]))
-    , "close"]
+#     if "close" not in df.columns:
+#         raise KeyError("Input DataFrame must contain a 'close' column")
 
-    if cleaned.empty:
-        raise ArithmeticError("No valid closing prices available after filtering")
+#     cleaned = df.loc[
+#         (df["close"] > 0)
+#         & (df["close"].notna())
+#         & (np.isfinite(df["close"]))
+#     , "close"]
 
-    # Ensuring Series returned (not DataFrame)
-    cleaned = cleaned.astype(float)
+#     if cleaned.empty:
+#         raise ArithmeticError("No valid closing prices available after filtering")
 
-    return cast(pd.Series, cleaned)
+#     # Ensuring Series returned (not DataFrame)
+#     cleaned = cleaned.astype(float)
 
-def calculate_daily_returns(close: pd.Series) -> pd.Series:
-    """
-    Compute daily percentage returns from a validated closing-price Series.
-    """
+#     return cast(pd.Series, cleaned)
 
-    daily_returns = close.pct_change()
+# def calculate_daily_returns(close: pd.Series) -> pd.Series:
+#     """
+#     Compute daily percentage returns from a validated closing-price Series.
+#     """
 
-    # If entire Series NaN -> invalid input
-    if daily_returns.isna().all():
-        raise ArithmeticError("Daily returns could not be computed")
+#     daily_returns = close.pct_change()
 
-    return daily_returns
+#     # If entire Series NaN -> invalid input
+#     if daily_returns.isna().all():
+#         raise ArithmeticError("Daily returns could not be computed")
+
+#     return daily_returns
 
 def calculate_daily_portfolio_returns(validated_df: pd.DataFrame) -> pd.Series:
     """
@@ -137,33 +166,33 @@ def build_price_frame(close_series: pd.Series) -> pd.DataFrame:
 
     return prices
 
-def summarize_returns(raw_df: pd.DataFrame, stock_name: str = "") -> Dict[str, str]:
-    """
-    Summarize performance metrics for a stock based on closing price.
+# def summarize_returns(raw_df: pd.DataFrame, stock_name: str = "") -> Dict[str, str]:
+#     """
+#     Summarize performance metrics for a stock based on closing price.
 
-    Returns:
-        mean_daily_return
-        annualized_volatility
-        total_return
-    """
+#     Returns:
+#         mean_daily_return
+#         annualized_volatility
+#         total_return
+#     """
 
-    # 1. Validate and extract the closing-price Series
-    close_series = perform_data_validation(raw_df)
+#     # 1. Validate and extract the closing-price Series
+#     close_series = perform_data_validation(raw_df)
 
-    prices = build_price_frame(close_series)
-    print(prices)
+#     prices = build_price_frame(close_series)
+#     print(prices)
 
-    daily_returns = prices["daily_returns"].dropna()
+#     daily_returns = prices["daily_returns"].dropna()
 
-    # 3. Compute metrics
-    total_return = daily_returns.sum()
-    mean_daily_return = daily_returns.mean()
-    annualized_volatility = daily_returns.std() * np.sqrt(252)
+#     # 3. Compute metrics
+#     total_return = daily_returns.sum()
+#     mean_daily_return = daily_returns.mean()
+#     annualized_volatility = daily_returns.std() * np.sqrt(252)
 
-    return {
-        "mean_daily_return": f"{mean_daily_return * 100:.4f}%",
-        "annualized_volatility": f"{annualized_volatility * 100:.4f}%",
-        "total_return": f"{total_return * 100:.4f}%",
-    }
+#     return {
+#         "mean_daily_return": f"{mean_daily_return * 100:.4f}%",
+#         "annualized_volatility": f"{annualized_volatility * 100:.4f}%",
+#         "total_return": f"{total_return * 100:.4f}%",
+#     }
 
 
