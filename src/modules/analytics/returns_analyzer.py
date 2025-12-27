@@ -3,7 +3,7 @@ This file is responsible for analysing the stock value and calculating the daily
 """
 import logging
 from collections.abc import Generator
-from typing import Any, Dict, cast
+from typing import Any, Dict, Tuple
 
 import pandas as pd
 import numpy as np
@@ -71,16 +71,20 @@ def read_all_csv_data(stock_symbol: str) -> pd.DataFrame:
         df = df.sort_index()
         return df
 
-def calculate_log_returns(df: pd.DataFrame):
-    "Calculates the log returns of closing prices from the dataframe"
+def calculate_log_returns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calculates the log returns of closing prices from the dataframe
+    """
     price_columns = ['ticker_close', 'benchmark_close']
     return_cols = [col + '_log_return' for col in price_columns]
     df[return_cols] = np.log(df[price_columns] / df[price_columns].shift(1))
-    logger.info('The updated dataframe with log returns is: \n%s', df)
-    return
+    #logger.info('The updated dataframe with log returns is: \n%s', df)
+    return (df[return_cols])
 
-def calculate_cummulative_returns(df: pd.DataFrame):
-    """Calculates and returns the commulative returns of the stock over the entire period"""
+def calculate_cummulative_returns(df: pd.DataFrame) -> Tuple[np.float64, np.float64]:
+    """
+    Calculates and returns the commulative returns of the stock over the entire period
+    """
     ticker_initial_price = df['ticker_close'].iloc[0]
     ticker_final_price = df['ticker_close'].iloc[-1]
 
@@ -89,52 +93,124 @@ def calculate_cummulative_returns(df: pd.DataFrame):
 
     ticker_cummulative_return = (ticker_final_price / ticker_initial_price - 1)
     benchmark_cummulative_return = (benchmark_final_point / benchmark_initial_point - 1)
+
+    logger.info('The ticker cummulative return is: %d and the benchmark cummulative return is: %d', ticker_cummulative_return, benchmark_cummulative_return)
     return (ticker_cummulative_return, benchmark_cummulative_return)
 
-def calculate_volatility(df: pd.DataFrame):
+def calculate_annualized_volatility(df: pd.DataFrame) -> Tuple[np.float64, np.float64]:
     """
     Calculates the Standard Deviation of the ticker's daily returns and returns its annualized value
     """
+    ticker_daily_returns_standard_deviation = df['ticker_close_log_return'].std(skipna=True)
+    benchmark_daily_returns_standard_deviation = df['benchmark_close_log_return'].std(skipna=True)
+
+    ticker_annualized_volatility = ticker_daily_returns_standard_deviation * (252 ** 0.5)
+    benchmark_annualized_volatility = benchmark_daily_returns_standard_deviation * (252 ** 0.5)
+
+    logger.info('The ticker annualized volatility: %d', ticker_annualized_volatility)
+    logger.info('The benchmark annualized volatility: %d', benchmark_annualized_volatility)
+    return (ticker_annualized_volatility, benchmark_annualized_volatility)
+
+def calculate_covariance(df: pd.DataFrame) -> float:
+    """
+    Calculates the covariance between the ticker and benchmark from the given dataframe    
+    """
+    covariance = df['ticker_close_log_return'].cov(df['benchmark_close_log_return'])
+    logger.info('The covariance is: %d', covariance)
+    return covariance
+
+def calculate_beta(df: pd.DataFrame) -> float:
+    """
+    Calculates the market sensitivity (Beta value). It implies how much the stock moves for every 1% move in the market
+
+    Things to keep in mind:
+    Statistical significance - Need at least 30 to 60 days 
+    Checking for stationarity - Returns should not have trends
+    For time-varying sensitivity - Consider using rolling-beta (a 60 day window)
+    Beta is the regression slope - ticker_return = alpha + beta * benchmark_return + error
+    """
+    covariance_between_ticker_and_benchmark = calculate_covariance(df)
+    variance_of_benchmark_log_returns = df['benchmark_close_log_return'].var()
+
+    beta_value = covariance_between_ticker_and_benchmark / variance_of_benchmark_log_returns
+    logger.info('The beta value is: %d', beta_value)
+
+    return beta_value
+
+def calculate_alpha(df: pd.DataFrame) -> np.float64:
+    """
+    Calculates the Alpha (Excess return or Jensen's Alpha). It implies the value added by the stock, adjusted against its risk.
+
+    Interpretations:
+    Positive alpha - stock outperformed its risk-adjusted expectation
+    Negative alpha - stock underperformed
+    Zero alpha - stock performed exactly as CAPM predicted
+
+    Things to keep in mind:
+    Statistical significance - Need many periods (at least > 60 days)
+    Alpha can be misleading if the Beta or annualized risk-free rate are wrong (using a default 5% rate here)
+    To compare against a common benchmark - Use a 3-month treasury bill for risk-free calculation
+    Jensen's Alpha is the intercept in the CAPM regression 
+    """
+    average_ticker_daily_log_return = df['ticker_close_log_return'].mean()
+    average_benchmark_daily_log_return = df['benchmark_close_log_return'].mean()
+
+    beta = calculate_beta(df)
+    annualized_risk_free_rate = 0.05
+    daily_risk_free_rate = (1 + annualized_risk_free_rate) ** (1/252) - 1
+
+    logger.info('The Daily risk free rate: %d', daily_risk_free_rate)
+
+    expected_return = daily_risk_free_rate + beta * (average_benchmark_daily_log_return - daily_risk_free_rate)
+
+    jensen_alpha = average_ticker_daily_log_return - beta * average_benchmark_daily_log_return
+    annualized_jensen_alpha = jensen_alpha * 252
+    logger.info('The Jensen\'s Alpha is: %s and annualized jensen alpha is: %s', jensen_alpha, annualized_jensen_alpha)
+    return annualized_jensen_alpha
+
+def calculate_sharp_ratio(df: pd.DataFrame) -> np.float64:
+    """
+    Calculates the Sharpe Ratio (or Risk Adjusted Return) of a ticker against a benchmark. It helps the user in understanding if 
+    the returns are due to smart investing or just taking excessive risk
+
+    Returns -  the Annualized Sharpe Ratio
+    """
+    average_ticker_daily_log_return = df['ticker_close_log_return'].mean()
+    annualized_risk_free_rate = 0.05
+    daily_risk_free_rate = (1 + annualized_risk_free_rate) ** (1/252) - 1
+
+    excess_return = average_ticker_daily_log_return - daily_risk_free_rate
+    daily_volatility = df['ticker_close_log_return'].std()
+    daily_sharpe_ratio = excess_return / daily_volatility
+    annualized_sharpe_ratio = daily_sharpe_ratio * (252 ** 0.5)
+
+    logger.info('The daily sharpe ratio is: %d and the annualized sharpe ratio is: %d', daily_sharpe_ratio, annualized_sharpe_ratio)   
+    return annualized_sharpe_ratio
+
+def calculate_correlation_coefficient(df: pd.DataFrame) -> np.float64:
+    """
+    Calculates the statistical Pearson correlation between the ticker and the benchmark. Implies how to Financial entities
+    move together
+
+    Interpretation:
+    If correlation == +1 : Implies perfect positive correlation (move exactly together)
+    If correlation == 0 : Implies no relationship
+    If correlation == -1: Implies perfect negative correlation (moves exactly opposite)
+    If correlation between 0.7 and 0.9 approx - Implies typical stock vs market correlation
+    If correlation == Negative : Implies a hedging potential
+
+    Key notes:
+    Stationarity requirement - Uses returns, not prices
+    Needs sufficient data -  > 30 days for reliability
+    Correlation != Causation
+    It can help in calculating rolling correlation for time-varying relationship
+    """
+
+    correlation = df['ticker_close_log_return'].corr(df['benchmark_close_log_return'])
+    logger.info('The correlation is: %d', correlation)
+
+    return correlation
     
-    pass
-
-#def 
-    
-# def perform_data_validation(df: pd.DataFrame) -> pd.Series:
-#     """
-#     All data validation is performed here and then the clean data is used for all the calculations and analysis
-#     """
-
-#     if "close" not in df.columns:
-#         raise KeyError("Input DataFrame must contain a 'close' column")
-
-#     cleaned = df.loc[
-#         (df["close"] > 0)
-#         & (df["close"].notna())
-#         & (np.isfinite(df["close"]))
-#     , "close"]
-
-#     if cleaned.empty:
-#         raise ArithmeticError("No valid closing prices available after filtering")
-
-#     # Ensuring Series returned (not DataFrame)
-#     cleaned = cleaned.astype(float)
-
-#     return cast(pd.Series, cleaned)
-
-# def calculate_daily_returns(close: pd.Series) -> pd.Series:
-#     """
-#     Compute daily percentage returns from a validated closing-price Series.
-#     """
-
-#     daily_returns = close.pct_change()
-
-#     # If entire Series NaN -> invalid input
-#     if daily_returns.isna().all():
-#         raise ArithmeticError("Daily returns could not be computed")
-
-#     return daily_returns
-
 def calculate_daily_portfolio_returns(validated_df: pd.DataFrame) -> pd.Series:
     """
     Calculates the daily portfolio total from the input data frame's closing prices and returns their daily percentage change
@@ -165,34 +241,3 @@ def build_price_frame(close_series: pd.Series) -> pd.DataFrame:
     prices["daily_returns"] = prices["close"].pct_change()
 
     return prices
-
-# def summarize_returns(raw_df: pd.DataFrame, stock_name: str = "") -> Dict[str, str]:
-#     """
-#     Summarize performance metrics for a stock based on closing price.
-
-#     Returns:
-#         mean_daily_return
-#         annualized_volatility
-#         total_return
-#     """
-
-#     # 1. Validate and extract the closing-price Series
-#     close_series = perform_data_validation(raw_df)
-
-#     prices = build_price_frame(close_series)
-#     print(prices)
-
-#     daily_returns = prices["daily_returns"].dropna()
-
-#     # 3. Compute metrics
-#     total_return = daily_returns.sum()
-#     mean_daily_return = daily_returns.mean()
-#     annualized_volatility = daily_returns.std() * np.sqrt(252)
-
-#     return {
-#         "mean_daily_return": f"{mean_daily_return * 100:.4f}%",
-#         "annualized_volatility": f"{annualized_volatility * 100:.4f}%",
-#         "total_return": f"{total_return * 100:.4f}%",
-#     }
-
-
