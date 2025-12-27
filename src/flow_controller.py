@@ -49,7 +49,7 @@ class FlowController:
         """
         start_unix_epoch = int(pd.Timestamp(start).timestamp())
         end_unix_epoch = int(pd.Timestamp(end).timestamp())
-        ticker_dataframe = self.data_loader.get_historical_data(ticker=ticker, start_ts=start_unix_epoch, end_ts=end_unix_epoch).sort_index()
+        ticker_dataframe = self.data_loader.get_historical_data(ticker=ticker, start_ts=start_unix_epoch, end_ts=end_unix_epoch).sort_index().dropna()
         if ticker_dataframe.empty:
             logger.info('Data missing for either ticker: %s or benchmark: %s. Please run download first. Returning None', ticker, benchmark)
             return
@@ -61,7 +61,7 @@ class FlowController:
                  
         else:
             try:
-                benchmark_dataframe = self.data_loader.get_historical_data(benchmark, start_unix_epoch, end_unix_epoch)
+                benchmark_dataframe = self.data_loader.get_historical_data(benchmark, start_unix_epoch, end_unix_epoch).dropna()
             except EmptyRecordReturnError as e:
                 logger.debug('Benchmark Record not found in the db due to error: %s. Using Nifty50 as default', e)
                 benchmark_dataframe = self.data_loader.get_historical_data(ticker='NIFTY50_id.csv', start_ts=start_unix_epoch, end_ts=end_unix_epoch)
@@ -71,7 +71,7 @@ class FlowController:
         ticker_dataframe_close_column = ticker_dataframe['close']
         benchmark_dataframe_close_column = benchmark_dataframe['close']
 
-        concatenated_closing_prices_pd_df = pd.concat([ticker_dataframe_close_column, benchmark_dataframe_close_column], axis=1, join='inner')
+        concatenated_closing_prices_pd_df = pd.concat([ticker_dataframe_close_column, benchmark_dataframe_close_column], axis=1, join='inner').dropna()
         concatenated_closing_prices_pd_df.columns = ['ticker_close', 'benchmark_close']
         if len(concatenated_closing_prices_pd_df) < 2:
             logger.debug('The resultant concatenated dataframe has < 2 rows, so returns cannot be calculated. Returning None')
