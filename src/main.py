@@ -12,6 +12,7 @@ from src.data_loader.data_loader import DataLoader
 from src.circuit_breaker import CircuitBreaker
 from src.data_validator import DataValidator
 from src.flow_controller import FlowController
+from src.analysis_module import AnalysisModule
 from src.logging_config import configure_logging
 from db.database import get_prod_conn, PROD_DB_PATH
 
@@ -37,7 +38,8 @@ def main() -> None:
     data_loader = DataLoader(conn)
     circuit_breaker = CircuitBreaker(data_loader)
     data_validator = DataValidator(data_loader)
-    flow_controller: FlowController = FlowController(data_loader, circuit_breaker, data_validator)
+    data_analyzer = AnalysisModule(data_loader)
+    flow_controller: FlowController = FlowController(data_loader, circuit_breaker, data_validator, data_analyzer)
 
     parser = build_parser()
     args: argparse.Namespace = parser.parse_args()
