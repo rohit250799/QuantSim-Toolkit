@@ -7,7 +7,7 @@ from src.modules.analytics.returns_analyzer import (
     calculate_cummulative_returns,
     calculate_annualized_volatility,
     calculate_beta,
-    calculate_alpha,
+    calculate_log_return_alpha,
     calculate_sharp_ratio, 
     calculate_correlation_coefficient
 )
@@ -31,7 +31,7 @@ class AnalysisModule:
             'cummulative_returns': calculate_cummulative_returns(df),
             'annualized_volatility': calculate_annualized_volatility(df),
             'beta': calculate_beta(df),
-            'alpha': calculate_alpha(df),
+            'log_return_alpha': calculate_log_return_alpha(df),
             'sharpe_ratio': calculate_sharp_ratio(df),
             'correlation_coefficient': calculate_correlation_coefficient(df),
             'sample_size': len(df)
