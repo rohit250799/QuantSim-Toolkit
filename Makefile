@@ -43,4 +43,8 @@ download:
 
 help:
 	@echo "Running help command..."
-	uv run python3 -m src.main -h
+	uv run python3 -m src.main $(ARGS) -h
+
+securityCheck:
+	@echo "Running security checks..."
+	uv run bandit -c .bandit.yaml -r . -lll
