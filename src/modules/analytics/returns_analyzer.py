@@ -94,7 +94,7 @@ def calculate_cummulative_returns(df: pd.DataFrame) -> Tuple[np.float64, np.floa
     ticker_cummulative_return = (ticker_final_price / ticker_initial_price - 1)
     benchmark_cummulative_return = (benchmark_final_point / benchmark_initial_point - 1)
 
-    logger.info('The ticker cummulative return is: %d and the benchmark cummulative return is: %d', ticker_cummulative_return, benchmark_cummulative_return)
+    logger.info('The ticker cummulative return is: %s and the benchmark cummulative return is: %s', ticker_cummulative_return, benchmark_cummulative_return)
     return (ticker_cummulative_return, benchmark_cummulative_return)
 
 def calculate_annualized_volatility(df: pd.DataFrame) -> Tuple[np.float64, np.float64]:
@@ -107,16 +107,20 @@ def calculate_annualized_volatility(df: pd.DataFrame) -> Tuple[np.float64, np.fl
     ticker_annualized_volatility = ticker_daily_returns_standard_deviation * (252 ** 0.5)
     benchmark_annualized_volatility = benchmark_daily_returns_standard_deviation * (252 ** 0.5)
 
-    logger.info('The ticker annualized volatility: %d', ticker_annualized_volatility)
-    logger.info('The benchmark annualized volatility: %d', benchmark_annualized_volatility)
+    logger.info('The ticker annualized volatility: %s', ticker_annualized_volatility)
+    logger.info('The benchmark annualized volatility: %s', benchmark_annualized_volatility)
     return (ticker_annualized_volatility, benchmark_annualized_volatility)
 
 def calculate_covariance(df: pd.DataFrame) -> float:
     """
-    Calculates the covariance between the ticker and benchmark from the given dataframe    
+    Calculates the sample covariance between the ticker and benchmark from the given dataframe    
     """
-    covariance = df['ticker_close_log_return'].cov(df['benchmark_close_log_return'])
-    logger.info('The covariance is: %d', covariance)
+    df = df.dropna()
+    ticker_log_returns_series = df['ticker_close_log_return'].to_numpy(dtype=float)
+    benchmark_log_returns_series = df['benchmark_close_log_return'].to_numpy(dtype=float)
+    covariance: float = float(np.cov(ticker_log_returns_series, benchmark_log_returns_series, ddof=1)[0, 1])
+    #covariance: float = df['ticker_close_log_return'].cov(df['benchmark_close_log_return'])
+    logger.info('The sample covariance is: %s', covariance)
     return covariance
 
 def calculate_beta(df: pd.DataFrame) -> float:
@@ -129,17 +133,23 @@ def calculate_beta(df: pd.DataFrame) -> float:
     For time-varying sensitivity - Consider using rolling-beta (a 60 day window)
     Beta is the regression slope - ticker_return = alpha + beta * benchmark_return + error
     """
-    covariance_between_ticker_and_benchmark = calculate_covariance(df)
-    variance_of_benchmark_log_returns = df['benchmark_close_log_return'].var()
+    df = df.dropna()
+    covariance_between_ticker_and_benchmark: float = calculate_covariance(df)
+    ticker_log_returns_series = df['ticker_close_log_return'].to_numpy(dtype=float)
+    benchmark_log_returns_series = df['benchmark_close_log_return'].to_numpy(dtype=float)
+    sample_variance_of_benchmark_log_returns: float = float(benchmark_log_returns_series.var(ddof=1))
 
-    beta_value = covariance_between_ticker_and_benchmark / variance_of_benchmark_log_returns
-    logger.info('The beta value is: %d', beta_value)
+    if sample_variance_of_benchmark_log_returns == 0:
+        raise ZeroDivisionError('Benchmark variance is 0. Please calculate again!')
+
+    beta_value = covariance_between_ticker_and_benchmark / sample_variance_of_benchmark_log_returns
+    logger.info('The beta value is: %s', beta_value)
 
     return beta_value
 
-def calculate_alpha(df: pd.DataFrame) -> np.float64:
+def calculate_log_return_alpha(df: pd.DataFrame) -> float:
     """
-    Calculates the Alpha (Excess return or Jensen's Alpha). It implies the value added by the stock, adjusted against its risk.
+    Calculates the Alpha (Log Returns alpha). It implies the excess log performance of a stock, adjusted against its risk.
 
     Interpretations:
     Positive alpha - stock outperformed its risk-adjusted expectation
@@ -159,35 +169,38 @@ def calculate_alpha(df: pd.DataFrame) -> np.float64:
     annualized_risk_free_rate = 0.05
     daily_risk_free_rate = (1 + annualized_risk_free_rate) ** (1/252) - 1
 
-    logger.info('The Daily risk free rate: %d', daily_risk_free_rate)
+    logger.info('The Daily risk free rate: %s', daily_risk_free_rate)
 
-    expected_return = daily_risk_free_rate + beta * (average_benchmark_daily_log_return - daily_risk_free_rate)
+    # expected_return = daily_risk_free_rate + beta * (average_benchmark_daily_log_return - daily_risk_free_rate)
 
-    jensen_alpha = average_ticker_daily_log_return - beta * average_benchmark_daily_log_return
-    annualized_jensen_alpha = jensen_alpha * 252
-    logger.info('The Jensen\'s Alpha is: %s and annualized jensen alpha is: %s', jensen_alpha, annualized_jensen_alpha)
-    return annualized_jensen_alpha
+    # jensen_alpha = average_ticker_daily_log_return - beta * average_benchmark_daily_log_return
+    # annualized_jensen_alpha = jensen_alpha * 252
+    # logger.info('The Jensen\'s Alpha is: %s and annualized jensen alpha is: %s', jensen_alpha, annualized_jensen_alpha)
+    log_alpha_daily = average_ticker_daily_log_return - beta * average_benchmark_daily_log_return
+    annualized_log_alpha = log_alpha_daily * 252
+    logger.info('The annualized log alpha is: %s', annualized_log_alpha)
+    return annualized_log_alpha
 
-def calculate_sharp_ratio(df: pd.DataFrame) -> np.float64:
+def calculate_sharp_ratio(df: pd.DataFrame) -> float:
     """
     Calculates the Sharpe Ratio (or Risk Adjusted Return) of a ticker against a benchmark. It helps the user in understanding if 
     the returns are due to smart investing or just taking excessive risk
 
     Returns -  the Annualized Sharpe Ratio
     """
-    average_ticker_daily_log_return = df['ticker_close_log_return'].mean()
-    annualized_risk_free_rate = 0.05
-    daily_risk_free_rate = (1 + annualized_risk_free_rate) ** (1/252) - 1
+    average_ticker_daily_log_return: float = df['ticker_close_log_return'].mean()
+    annualized_risk_free_rate: float = 0.05
+    daily_risk_free_rate: float = (1 + annualized_risk_free_rate) ** (1/252) - 1
 
     excess_return = average_ticker_daily_log_return - daily_risk_free_rate
-    daily_volatility = df['ticker_close_log_return'].std()
+    daily_volatility: float = df['ticker_close_log_return'].std()
     daily_sharpe_ratio = excess_return / daily_volatility
-    annualized_sharpe_ratio = daily_sharpe_ratio * (252 ** 0.5)
+    annualized_sharpe_ratio: float = daily_sharpe_ratio * (252 ** 0.5)
 
-    logger.info('The daily sharpe ratio is: %d and the annualized sharpe ratio is: %d', daily_sharpe_ratio, annualized_sharpe_ratio)   
+    logger.info('The daily sharpe ratio is: %s and the annualized sharpe ratio is: %s', daily_sharpe_ratio, annualized_sharpe_ratio)   
     return annualized_sharpe_ratio
 
-def calculate_correlation_coefficient(df: pd.DataFrame) -> np.float64:
+def calculate_correlation_coefficient(df: pd.DataFrame) -> float:
     """
     Calculates the statistical Pearson correlation between the ticker and the benchmark. Implies how to Financial entities
     move together
@@ -207,7 +220,7 @@ def calculate_correlation_coefficient(df: pd.DataFrame) -> np.float64:
     """
 
     correlation = df['ticker_close_log_return'].corr(df['benchmark_close_log_return'])
-    logger.info('The correlation is: %d', correlation)
+    logger.info('The correlation is: %s', correlation)
 
     return correlation
     
