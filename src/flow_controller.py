@@ -41,7 +41,7 @@ class FlowController:
 
         return 
     
-    def dispatch_analysis_request(self, ticker: str, benchmark: str | None, start: str, end: str) -> dict | None:
+    def dispatch_analysis_request(self, ticker: str, benchmark: str | None, start: str, end: str) -> None:
         """
         Serves the computation purpose for price data analysis. Fetches price data for both tickers -> if data exists ->
         enters into the analysis module for computation and returns results to the terminal. In simpler terms, its job is

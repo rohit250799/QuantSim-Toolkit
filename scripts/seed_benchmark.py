@@ -34,9 +34,9 @@ def load_benchmark_csv(file_path: str = 'src/data/') -> pd.DataFrame:
         nifty_df['date'] = pd.to_datetime(nifty_df['date'], format='%d-%b-%Y')
         nifty_df.set_index('date', inplace=True)
         nifty_df.index.name = 'timestamp'
+        nifty_df.index = pd.to_datetime(nifty_df.index)
         nifty_df.index = nifty_df.index.normalize()
         nifty_df.index = nifty_df.index.strftime("%Y-%m-%d %H:%M:%S")
-        nifty_df.index = pd.to_datetime(nifty_df.index)
         print(f'The parsed index dataframe with date is: \n{nifty_df}')
 
         logger.info('The dataframe with updated index in load_benchmark is: \n%s', nifty_df)
