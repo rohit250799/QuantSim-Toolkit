@@ -10,6 +10,7 @@ import numpy as np
 
 from db.database import get_prod_conn, execute_query
 from src.quant_enums import LogLevel, Circuit_State
+from src.custom_errors import EmptyRecordReturnError
 from db.db_queries import (
     list_all_existing_tables_query,
     price_data_table_creation_query,
@@ -145,11 +146,15 @@ class DataLoader:
         Returns: a Pandas DataFrame.
         """
         conn = self.prod_db_connection
-        historical_data_dataframe = pd.read_sql_query(sql=get_historical_data_query, con=conn, params=(ticker, start_ts, end_ts), dtype=np.float32)
-        historical_data_dataframe['timestamp'] = pd.to_datetime(historical_data_dataframe['timestamp'], format='%Y-%m-%d %H:%M:%S')
-        historical_data_dataframe['timestamp'] = historical_data_dataframe['timestamp'].dt.tz_localize('Asia/Kolkata')
-        historical_data_dataframe.set_index('timestamp', inplace=True)
-        return historical_data_dataframe
+        historical_data_dataframe = pd.read_sql_query(sql=get_historical_data_query, con=conn, params=(ticker, start_ts, end_ts))
+        if not historical_data_dataframe.empty:
+            historical_data_dataframe['timestamp'] = pd.to_datetime(historical_data_dataframe['timestamp'], unit='s')
+            historical_data_dataframe['timestamp'] = historical_data_dataframe['timestamp'].dt.tz_localize('Asia/Kolkata')
+            historical_data_dataframe.set_index('timestamp', inplace=True)
+            return historical_data_dataframe
+        else:
+            logger.info('The sql query in get historical data function data yielded no results for [%s, %s and %s] and the dataframe returned is empty', ticker, start_ts, end_ts)
+            raise EmptyRecordReturnError('No data found in the db based on your input. Please check it again')
 
     def insert_daily_data(self, ticker: str, df: pd.DataFrame) -> None:
         """

@@ -11,8 +11,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     #Analyze
     analyze_parser = subparsers.add_parser("analyze", help="Analyze historical price data")
-    analyze_parser.add_argument("--symbol", required=True)
-    analyze_parser.add_argument("--exchange", default="BSE")
+    analyze_parser.add_argument("-ticker", '--ticker_element', help='The target symbol to perform analysis on', required=True, dest='ticker')
+    analyze_parser.add_argument("-texchange", '--ticker_exchange', help='The exchange where the ticker is being traded', default="BSE", dest='tExchange')
+    analyze_parser.add_argument("-benchmark", '--benchmrk_element', help='The benchmark element which the analysis is being performed against', default='NIFTY50', dest='benchmark')
+    analyze_parser.add_argument("-bexchange", '--benchmark_exchange', help = 'The the exchange from where this benchmark data is collected', default="NSE", dest='bExchange')
+    analyze_parser.add_argument("-start", '--start_date', help = 'The start date for data collection and analysis', default='2025-09-01', dest='startDate')
+    analyze_parser.add_argument("-end", '--end_date', help = 'The end date for data collection and analysis', default='2025-09-21', dest='endDate')
+
 
     #Download
     parser_downloader = subparsers.add_parser('download', help='Download required data in CSV format')

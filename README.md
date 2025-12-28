@@ -1,6 +1,6 @@
 # QuantSim-Toolkit
 
-**A Python-based quantitative simulation and analysis toolkit that integrates probability simulations, stock return analysis, portfolio risk calculations, and Monte Carlo methods. Designed to demonstrate applied mathematics, numerical simulations, and CLI-based financial utilities.**
+**A Python-based quantitative simulation and analysis toolkit integrating probability simulations, stock return analysis, portfolio risk calculations, and Monte Carlo methods. Designed to demonstrate applied mathematics, numerical simulations, and CLI-based financial utilities.**
 
 ---
 
@@ -38,7 +38,7 @@ from the terminal and the name output is the name of your root directory. Next, 
 4. Activate the virtual environment by using the command: **source .venv/bin/activate** (for linux users) if its not activated - if there is a (.venv) before every line, its activated successfully. 
 5. To validate the systems / perform vanity checks - run the command **uv run pytest tests/ -v** from the terminal to perform the unit tests. The terminal will display your
 test results on the screen. 
-6. If all the unit tests passm you can try out actual logic etc. from the terminal by entering the command: ****python3 -m src.main analyze --symbol 'TCS'****
+6. If all the unit tests passm you can try out actual logic etc. from the terminal by entering the command: **python3 -m src.main analyze -ticker 'TCS' -start '2025-09-01' -end '2025-09-21'**
 
 **To start contributing on the project**, you have to first fork the repo and then repeat the previously mentioned steps on installing it into your local. 
 
@@ -59,16 +59,26 @@ In this case, there are some things that you need to know:
     c) Once you get an API key, you have to store it in a .env file inside the modules/ directory. Store your API key there in the format: export API_KEY='A^5435NDD'
     d) In the above point, maintaining the format is very important in the .env file and there should be no space on either side of '='
 
-The downloaded stock data will be stored in the price_data table in db, and will be loaded as a Pandas DataFrame for easier analysis. There will ne multiple validation checks performed on the downloaded
+The downloaded stock data will be **stored in the price_data table in db, and will be loaded as a Pandas DataFrame for easier analysis**. There will ne multiple validation checks performed on the downloaded
 data like **checking for gaps**, **checking outliers** and **checking for stale data** and for those records that did not pass the validation checks, logs will be created in the logs directory.
 
 ![Display validated download data](screenshots/download_stock_data_with_dataframe_conversion_and_filtering.png)
 
-2. Using generators with chunksize to read large downloaded CSV file data and calculating the daily stock returns on each chunk. You can use the analyzer by running the command **python3 -m src.main analyze --symbol 'TCS'** to calculate and display the mean daily return, annualized volatility etc. on the terminal. Replace  'TCS' with any other stock symbol you like.  
+2. Using generators with chunksize to read large downloaded CSV file data and calculating the daily stock returns on each chunk. You can use the analyzer by running the command **python3 -m src.main analyze -ticker 'TCS' -start '2025-09-01' -end '2025-09-21'** to calculate and display the key performance indicators. Replace the ticker 'TCS' with any other stock symbol you like which is traded in the appropriate market or change the start and end date, and the analysis results will keep changing accordingly.   
 
-    Now, the key performance indicators of a particular stock are also displayed after the analysis. 
+    Now, the key performance indicators of a particular stock are also displayed after the analysis. Using this feature, **the user can calculate his stock's performance against a benchmark**(NIFTY 50) by default.
+    For now, the analysis command returns: **Daily Log returns, Cummulative returns, Annualized Volatility, Beta, Log Returns Alpha, Sharpe Ratio and Correlation Coefficient**. (as can be seen from the below image) 
 
 ![Display key performance indicators](screenshots/analyze_stock.png)
+
+    Note: 
+    The Default Benchmark used in this project is NIFTY50 Index (Indian Market - NSE). If you want some other benchmark to be used, then you can specify the benchmark using the -benchmark and -bexchamge arguments.
+    Be careful, that the benchmark used should match its appropriate exchange (for example - you can't use NIFTY50 as a benchmark with the exchange provided as NASDAQ).
+
+    Problem with Alpha Vantage API:
+    You cannot use the Alpha Vantage API to get the NIFTY50 data (since it's not shared by the market and there are no functions in the API to fetch it). As a workaround, I have downloaded the NIFTY50 data since the 
+    last year to today in a CSV file and have used it for the Analysis (as a benchmark). So, there is no extra API used, but I have just expanded the Data Ingestion layer by just downloading and loading the Nifty50 data
+    into a DataFrame using a simple Python script found here: scripts/seed_benchmark.py 
 
 3. Now, the cumulative returns for the entire portfolio and for individual assets can be calculated for plotting it into line charts for easier understanding.
 Simply navigate to the **portfolio_analyzer.py** file and run it in the terminal. Enter number 2 as input and then the chart will be displayed on the screen and will be saved in the plots directory as well. 
@@ -115,29 +125,29 @@ The logs will be stored in **logs/errors.log**
 
 ---
 
-## Features / Modules for the project
+## Features (work in progress)
 
 ### 1. Probability Simulator
 - Simulates dice rolls, coin tosses, and random events
 - Estimates probabilities using Monte Carlo simulations
 - Demonstrates applied probability concepts
 
-### 2. Stock Return Analyzer
+### 1. Stock Return Analyzer - done
 - Reads historical stock price CSVs
-- Computes returns, mean, variance, and standard deviation
+- Computes daily log returns, cummulative returns, annualized log returns alpha, beta etc
 - Plots return distributions and moving averages for visualization
 
-### 3. Portfolio Risk Calculator
+### 2. Portfolio Risk Calculator
 - Computes portfolio variance using covariance matrices
 - Estimates volatility and risk metrics
 - Prepares for portfolio optimization tasks
 
-### 4. Monte Carlo Stock Price Simulator
+### 3. Monte Carlo Stock Price Simulator
 - Simulates stock price paths using Geometric Brownian Motion
 - Calculates expected payoffs for hypothetical trading scenarios
 - Demonstrates applied Monte Carlo simulations
 
-### 5. CLI Interface
+### 4. CLI Interface - done
 - Unified command-line interface using `argparse`
 - Subcommands: `simulate`, `analyze`, `download`, `validate`
 - Modular and easy-to-use workflow
