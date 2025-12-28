@@ -44,6 +44,25 @@ test results on the screen.
 
 ---
 
+How you can try it out in an interactive sandbox environment **Github Codespaces** without any setup or local installation:
+(Run this project directly in your browser)
+
+### Steps:
+1. Click **Code → Codespaces → Create codespace**
+2. Wait for environment setup (~1 minute)
+3. Run the commands
+
+The toolkit is executed via a CLI interface.
+
+### Example command to run in codespaces
+
+make analyze ARGS="--ticker TCS \
+                   --start 2025-08-01 \
+                   --end 2025-09-21"
+
+
+---
+
 Trying out the features(all commands should be entered in the terminal from the root directory):
 
 Activate the virtual environment first by using **source .venv/bin/activate** from the root directory
