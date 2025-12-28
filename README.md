@@ -44,6 +44,38 @@ test results on the screen.
 
 ---
 
+How you can try it out in an interactive sandbox environment **Github Codespaces** without any setup or local installation:
+(Run this project directly in your browser)
+
+### Quick Start (Recommended) - no setup involved:
+1. From the Repo , select the Green button named "Code". Click **Code → Codespaces → Create codespace**
+2. Wait for environment setup (~1 minute)
+3. Run the below commands:
+
+The toolkit is executed via a CLI interface.
+
+### Example command to run in codespaces
+
+# To run unit tests:
+make test
+
+# To run data validation
+make validate ARGS="--tickerName TCS"
+
+# To use the linter and perform mypy strict checking
+make lint
+
+# Perform analysis
+make analyze ARGS="--ticker_element TCS --start_date 2025-08-01 --end_date 2025-09-21"
+
+# To download data
+make download ARGS="--stockSymbol SBI --startdate 2025-08-16 --enddate 2025-09-23" 
+
+# To run security check with Bandit
+make securityCheck
+
+---
+
 Trying out the features(all commands should be entered in the terminal from the root directory):
 
 Activate the virtual environment first by using **source .venv/bin/activate** from the root directory
