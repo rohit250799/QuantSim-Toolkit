@@ -2,7 +2,7 @@ import logging
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from src.modules.analytics.returns_analyzer import calculate_daily_portfolio_returns, read_all_csv_data, perform_data_validation
+from src.modules.analytics.returns_analyzer import calculate_daily_portfolio_returns, read_all_csv_data
 
 logger = logging.getLogger("analytics")
 

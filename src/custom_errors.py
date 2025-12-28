@@ -20,6 +20,16 @@ class RecordInsertionError(Exception):
     def __str__(self) -> str:
         return f"{self.message}"
     
+class EmptyRecordReturnError(Exception):
+    """Exception raised when the SQL query found no matches and returns an empty record instead"""
+
+    def __init__(self, message: Optional[str]) -> None:
+        super().__init__(message)
+        self.message = message
+
+    def __str__(self) -> str:
+        return f'{self.message}'
+    
 class TableDoesNotExistError(Exception):
     """Exception raised when a the specific table does not exist in the db"""
 

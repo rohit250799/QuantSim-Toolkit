@@ -82,7 +82,7 @@ WHERE ticker = ?
 """
 
 get_historical_data_query: str = """
-SELECT * FROM price_data where ticker = ? and timestamp betweem ? AND ? ORDER BY timestamp ASC
+SELECT * FROM price_data where ticker = ? and timestamp between ? AND ? ORDER BY timestamp ASC
 """
 
 insert_or_update_record_in_symbols_table_query: str = """
