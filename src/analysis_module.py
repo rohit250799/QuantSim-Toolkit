@@ -38,4 +38,5 @@ class AnalysisModule:
         }
         
         logger.info('\n The compute metrics dict is: \n %s', compute_metrics_dict)
+        print('The computed analysis metrics are: %s', compute_metrics_dict)
         return 
