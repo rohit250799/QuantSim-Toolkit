@@ -48,6 +48,7 @@ class ApiAdapter:
                     logging.info('API call successful from api call with retry function')
                     raw_data = api_calling_response.json()
                     logging.debug('The raw data from the api call is: %s', raw_data)
+                    print(f'The raw data from the API call is: {raw_data}')
                     response_dict_data = cast(Dict[str, Any], raw_data)
                     logging.debug('The response dict data is: %s', response_dict_data)
                     return response_dict_data
@@ -105,4 +106,5 @@ class ApiAdapter:
 
         filtered_dataframe_based_on_daterange = df.loc[start_date:end_date]
         logging.debug('The filtered dataframe is: %s', filtered_dataframe_based_on_daterange)
+        print(f'The filtered dataframe is: {filtered_dataframe_based_on_daterange}')
         return filtered_dataframe_based_on_daterange

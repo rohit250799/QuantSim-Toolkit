@@ -7,5 +7,11 @@ logger = logging.getLogger("cli")
 
 
 def run_download(args: argparse.Namespace, flow_controller: FlowController) -> None:
-    flow_controller.handle_download_request(args.symbol, args.startDate, args.endDate)
-    return
+    try:
+        flow_controller.handle_download_request(args.symbol, args.startDate, args.endDate)
+    except (ConnectionRefusedError, ConnectionAbortedError, InterruptedError, TimeoutError) as e:
+        logger.info('Download failed due to reason: %s', e)
+        raise
+    else:
+        print('Data downloaded successfully!')
+        return
