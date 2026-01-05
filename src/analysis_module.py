@@ -1,7 +1,7 @@
 import pandas as pd
 import logging
 
-from typing import Dict
+from typing import Dict, Any
 from src.data_loader.data_loader import DataLoader
 from src.modules.analytics.returns_analyzer import (
     calculate_log_returns,
@@ -21,7 +21,7 @@ class AnalysisModule:
         self.data_loader = data_loader
         return
 
-    def compute_metrics(self, df: pd.DataFrame) -> Dict[str, float]:
+    def compute_metrics(self, df: pd.DataFrame) -> Dict[str, Any]:
         """
         Perform all the mathematical computations needed for the analysis
 

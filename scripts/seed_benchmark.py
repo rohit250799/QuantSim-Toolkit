@@ -87,24 +87,8 @@ def seed_database(ticker_name: str, csv_filename: str) -> None:
     except Exception as e:
         logger.info("Failed to seed %s: %s", ticker_name, e)
         raise
-    
-    # clean_df = load_csv_to_dataframe(csv_path)
-    # data_loader.insert_daily_data(ticker_name, clean_df)
-    # logger.info("Seeded benchmark data for %s", ticker_name)
-    # return
 
-    # try:
-    #     clean_dataframe = load_benchmark_csv()
-    # except (FileNotFoundError, ValueError) as e:
-    #     logger.info('Error occured: %s', e)
-    #     raise
-    # else:
-    #     data_loader.insert_daily_data(ticker_name, clean_dataframe)
-    #     logger.info('Successfully inserted the Nifty dataframe into price data table in db')
-
-    #     return
-
-def hydrate_environment():
+def hydrate_environment() -> None:
     """
     Convenience function to hydrate the database for remote environments (Codespaces/CI).
     Add all your 'Golden Sample' tickers here.
@@ -115,7 +99,9 @@ def hydrate_environment():
     # Hydrate TCS
     seed_database('TCS', 'TCS_id.csv')
     seed_database('ITC', 'ITC_id.csv')    
-    seed_database('RELIANCE', 'RELIANCE_id.csv')    
+    seed_database('RELIANCE', 'RELIANCE_id.csv')
+
+    return    
 
 if __name__ == '__main__':
     #If run directly, performing the full environmemt hydration
