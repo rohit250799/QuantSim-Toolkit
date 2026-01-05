@@ -2,7 +2,7 @@ import pandas as pd
 import logging
 import numpy as np
 from datetime import datetime, timezone
-from typing import Tuple, Dict, List
+from typing import Tuple, Dict, List, Mapping
 
 from src.data_loader.data_loader import DataLoader
 from src.quant_enums import ValidationIssueType
@@ -27,7 +27,8 @@ class DataValidator:
         
         if df.index.tz is None:
             df = df.copy()
-            df.index = df.index.tz_localize("UTC")
+            #df.index = df.index.tz_localize("UTC")
+            df.index = pd.to_datetime(df.index, utc=True)
         
         missing = [c for c in price_columns if c not in df.columns]
         if missing:
@@ -74,8 +75,9 @@ class DataValidator:
         logger.debug('The missing days are: %s', missing_days)
 
         for day in missing_days:
-            date_string = day.isoformat()
-            data_loader.insert_validation_issue(ticker, date_string, ValidationIssueType.MISSING_DAY.value, "Missing OHLCV data for this trading day")
+            #date_string = day.isoformat()
+            date_set = int(day.timestamp())
+            data_loader.insert_validation_issue(ticker, date_set, ValidationIssueType.MISSING_DAY.value, "Missing OHLCV data for this trading day")
 
         return len(missing_days)
 
@@ -161,7 +163,7 @@ class DataValidator:
                 stale_count += 1
         return stale_count
     
-    def calculate_quality_score(self, report: Dict[str, float]) -> float:
+    def calculate_quality_score(self, report: Mapping[str, int]) -> float:
         """
         Takes the dictionary object about the counts of gaps, outliers and stale rows in the dataset as an input to calculate the Data Integrity Score
 

@@ -229,9 +229,10 @@ class FlowController:
                         ticker, current_timestamp=current_timestamp
                     )
                     return
-                clean_data = self.data_validator.validate_and_clean(ticker, df=api_call_data)
+                price_columns = ['close']
+                clean_dataframe, _ = self.data_validator.validate_and_clean(ticker, df=api_call_data, price_columns=price_columns)
                 logger.debug('The data as param in validate and clean, as dataframe is: \n%s', api_call_data)
-                self.data_loader.insert_daily_data(ticker=ticker, df=clean_data)
+                self.data_loader.insert_daily_data(ticker=ticker, df=clean_dataframe)
         return
 
 

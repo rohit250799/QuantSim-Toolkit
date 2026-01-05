@@ -321,7 +321,7 @@ class DataLoader:
         return
 
     def insert_validation_issue(
-        self, ticker: str, date: str, issue_type: str, description: str
+        self, ticker: str, date: int, issue_type: str, description: str
     ) -> None:
         """
         Logs data quality failures
