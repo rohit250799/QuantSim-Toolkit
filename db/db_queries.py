@@ -105,3 +105,33 @@ system_logs_insertion_query: str = """
 INSERT INTO system_logs (timestamp, level, source, message, ticker, api_status_code, response_time_ms) 
 VALUES (?, ?, ?, ?, ?, ?, ?) 
 """
+
+analysis_results_table_creation_query: str = """
+CREATE TABLE IF NOT EXISTS analysis_results (
+    id INTEGER PRIMARY KEY,
+    timestamp INTEGER NOT NULL,
+    ticker TEXT NOT NULL,
+    benchmark TEXT NOT NULL,
+    start_date INT,
+    end_date INT,
+    alpha REAL,
+    beta REAL,
+    sharpe_ratio REAL, 
+    volatility REAL,
+    correlation REAL,
+    data_quality_score REAL
+)
+"""
+
+insert_record_into_analysis_results_table: str = """
+INSERT INTO analysis_results (timestamp, ticker, benchmark, start_date, end_date, alpha, beta, sharpe_ratio, ticker_volatility, benchmark_volatility, correlation, data_quality_score)
+values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+"""
+
+rename_volatility_to_ticker_volatility_in_analysis_results_query: str = """
+ALTER TABLE analysis_results RENAME COLUMN volatility to ticker_volatility 
+"""
+
+add_new_column_benchmark_volatility_in_analysis_results_query: str = """
+ALTER TABLE analysis_results ADD COLUMN benchmark_volatility REAL
+"""
