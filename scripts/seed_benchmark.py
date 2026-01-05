@@ -1,68 +1,126 @@
 import logging
 import pandas as pd
+from pathlib import Path
 
 from src.data_loader.data_loader import DataLoader
 from src.data_validator import DataValidator
 
 logger = logging.getLogger("cli")
 
+BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = BASE_DIR / "src" / "data"
 
-def load_benchmark_csv(file_path: str = 'src/data/') -> pd.DataFrame:
+def load_csv_to_dataframe(csv_file_name: str) -> pd.DataFrame:
     """
     Reads your local Nifty50 CSV, format it to match our internal price_data schema, and "hydrate" 
     the database so the rest of the system treats it like any other ticker.
 
     Returns: A sanitized dataframe which will be seeded to the price_data table in the db
     """
+    file_path = DATA_DIR / csv_file_name
+    if not file_path.exists():
+        logger.error('File not found at: %s', file_path)
+        raise FileNotFoundError(f'Missing source CSV: {file_path}')
+    
     try:
-        nifty_df = pd.read_csv('src/data/NIFTY50_id.csv', usecols=['date', 'open', 'high', 'low', 'close', 'volume'], parse_dates=['date'])[['date', 'open', 'high', 'low', 'close', 'volume']]
-        print(nifty_df)
-        logger.info('The head of the dataframe is: %s', nifty_df.head)
-        logger.info('\n The dataframe shape: %s', nifty_df.shape)
-        logger.info('\n The dataframe columns: %s', nifty_df.columns.to_list())
+        #df = pd.read_csv(file_path, usecols=['date', 'open', 'high', 'low', 'close', 'volume'], parse_dates=['date'])[['date', 'open', 'high', 'low', 'close', 'volume']]
+        df = pd.read_csv(file_path, usecols=['date', 'open', 'high', 'low', 'close', 'volume'], parse_dates=['date']) #load necessary cols
+        
+        #with Gemini (unconfirmed) - standardize index to timestamp
+        df.rename(columns={'date': 'timestamp'}, inplace=True)
+        df.set_index('timestamp', inplace=True)
 
+        #normalizing time and ensuring UTC localization
+        df.index = pd.to_datetime(df.index)
+        if df.index.tz is None:
+            df.index = df.index.tz_localize("UTC")
+
+        logger.debug('The head of the dataframe is: %s', df.head)
+        logger.debug('\n The dataframe shape: %s', df.shape)
+        logger.debug('\n The dataframe columns: %s', df.columns.to_list())
+
+        # Format the index for SQLite storage (YYYY-MM-DD HH:MM:SS)
+        # Note: We keep it as a DatetimeIndex for validation, DataLoader handles string conversion
+        return df
+        
     except FileNotFoundError as e:
-        logger.debug('File not found in the given location. Error: %s', e)
+        logger.error("Error loading CSV %s: %s", csv_file_name, e)
         raise
 
     except ValueError as e:
         logger.debug('Error loading columns: %s. Check if the column names exist in the CSV file.', e)
         raise
     
-    else: 
-        #CSV file found and its data has been loaded as a DataFrame
-        nifty_df['date'] = pd.to_datetime(nifty_df['date'], format='%d-%b-%Y')
-        nifty_df.set_index('date', inplace=True)
-        nifty_df.index.name = 'timestamp'
-        nifty_df.index = pd.to_datetime(nifty_df.index)
-        nifty_df.index = nifty_df.index.normalize()
-        nifty_df.index = nifty_df.index.strftime("%Y-%m-%d %H:%M:%S")
-        print(f'The parsed index dataframe with date is: \n{nifty_df}')
-
-        logger.info('The dataframe with updated index in load_benchmark is: \n%s', nifty_df)
-        data_loader = DataLoader()
-        data_validator = DataValidator(data_loader)
-
-        validated_nifty_df = data_validator.validate_and_clean(ticker='Nifty50', df=nifty_df)
-        logger.debug('The validated dataframe is: \n%s', validated_nifty_df)
-        print(f'The validated and clean dataframe is: \n{validated_nifty_df}')
-        return validated_nifty_df
-    
-def seed_database(ticker_name: str = 'NIFTY50_id.csv', csv_path: str = 'src/data') -> None:
+def seed_database(ticker_name: str, csv_filename: str) -> None:
     """
     Inserts the valid benchmark OHLCV data into the price_data table in db 
+
+    Orchestrates:
+    1. Loading CSV
+    2. Validating data integrity
+    3. Inserting into the price_data table in the db
     """
     data_loader = DataLoader()
-    try:
-        clean_dataframe = load_benchmark_csv()
-    except (FileNotFoundError, ValueError) as e:
-        logger.info('Error occured: %s', e)
-        raise
-    else:
-        data_loader.insert_daily_data(ticker_name, clean_dataframe)
-        logger.info('Successfully inserted the Nifty dataframe into price data table in db')
+    data_validator = DataValidator(data_loader)
 
+    if data_loader.ticker_exists(ticker_name):
+        logger.info('Ticker %s already exists. Skipping its seeding.', ticker_name)
         return
+    
+    try:
+        # 1. Extraction
+        df = load_csv_to_dataframe(csv_filename)
+        
+        # 2. Validation (Audit)
+        # We audit 'close' to ensure the quality score is captured before ingestion
+        _, report = data_validator.validate_and_clean(ticker_name, df, ['close'])
+        score = data_validator.calculate_quality_score(report)
+        
+        # 3. Persistence
+        data_loader.insert_daily_data(ticker_name, df)
+        
+        logger.debug(
+            "Successfully seeded %s from %s (Quality Score: %.2f)", 
+            ticker_name, csv_filename, score
+        )
 
+    except Exception as e:
+        logger.info("Failed to seed %s: %s", ticker_name, e)
+        raise
+    
+    # clean_df = load_csv_to_dataframe(csv_path)
+    # data_loader.insert_daily_data(ticker_name, clean_df)
+    # logger.info("Seeded benchmark data for %s", ticker_name)
+    # return
+
+    # try:
+    #     clean_dataframe = load_benchmark_csv()
+    # except (FileNotFoundError, ValueError) as e:
+    #     logger.info('Error occured: %s', e)
+    #     raise
+    # else:
+    #     data_loader.insert_daily_data(ticker_name, clean_dataframe)
+    #     logger.info('Successfully inserted the Nifty dataframe into price data table in db')
+
+    #     return
+
+def hydrate_environment():
+    """
+    Convenience function to hydrate the database for remote environments (Codespaces/CI).
+    Add all your 'Golden Sample' tickers here.
+    """
+    # Hydrate the Benchmark
+    seed_database('NIFTY50', 'NIFTY50_id.csv')
+
+    # Hydrate TCS
+    seed_database('TCS', 'TCS_id.csv')
+    seed_database('ITC', 'ITC_id.csv')    
+    seed_database('RELIANCE', 'RELIANCE_id.csv')    
+
+if __name__ == '__main__':
+    #If run directly, performing the full environmemt hydration
+    hydrate_environment()
+
+    
 # seed_database()
 # logger.info('Benchmark Data seeded sucessfully')
