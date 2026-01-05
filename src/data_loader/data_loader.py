@@ -26,8 +26,6 @@ from db.db_queries import (
     system_logs_table_creation_query,
     validation_log_table_creation_query,
     insert_record_into_analysis_results_table,
-    rename_volatility_to_ticker_volatility_in_analysis_results_query,
-    add_new_column_benchmark_volatility_in_analysis_results_query
 )
 from src.custom_errors import EmptyRecordReturnError
 from src.quant_enums import Circuit_State, LogLevel
@@ -72,8 +70,6 @@ class DataLoader:
             cursor.execute(validation_log_table_creation_query)
             cursor.execute(system_config_table_creation_query)
             cursor.execute(analysis_results_table_creation_query)
-            cursor.execute(rename_volatility_to_ticker_volatility_in_analysis_results_query)
-            cursor.execute(add_new_column_benchmark_volatility_in_analysis_results_query)
             conn.commit()
         except sqlite3.Error as e:
             logger.debug("An error occured: %s", e)
@@ -198,28 +194,22 @@ class DataLoader:
         Returns: a Pandas DataFrame.
         """
         conn = self.prod_db_connection
-        historical_data_dataframe = pd.read_sql_query(
-            sql=get_historical_data_query, con=conn, params=(ticker, start_ts, end_ts)
-        )
-        if not historical_data_dataframe.empty:
-            historical_data_dataframe["timestamp"] = pd.to_datetime(
-                historical_data_dataframe["timestamp"], unit="s"
+        try:
+
+            historical_data_dataframe = pd.read_sql_query(
+                sql=get_historical_data_query, con=conn, params=(ticker, start_ts, end_ts)
             )
-            historical_data_dataframe["timestamp"] = historical_data_dataframe[
-                "timestamp"
-            ].dt.tz_localize("Asia/Kolkata")
-            historical_data_dataframe.set_index("timestamp", inplace=True)
+        except sqlite3.Error as e:
+            logger.exception('DB error while fetching historical data from the database')
+            raise RuntimeError('DB error while fetching from price_data table') from e
+        
+        if historical_data_dataframe.empty:
+            logging.info('The dataframe fetched from price_data is empty. So, returning dataframe')
             return historical_data_dataframe
-        else:
-            logger.info(
-                "The sql query in get historical data function data yielded no results for [%s, %s and %s] and the dataframe returned is empty",
-                ticker,
-                start_ts,
-                end_ts,
-            )
-            raise EmptyRecordReturnError(
-                "No data found in the db based on your input. Please check it again"
-            )
+        
+        historical_data_dataframe['timestamp'] = pd.to_datetime(historical_data_dataframe['timestamp'], unit='s', utc=True)
+        historical_data_dataframe = historical_data_dataframe.set_index('timestamp')
+        return historical_data_dataframe
 
     def insert_daily_data(self, ticker: str, df: pd.DataFrame) -> None:
         """
@@ -429,5 +419,5 @@ class DataLoader:
         
         return
     
-my_dl = DataLoader()
+#my_dl = DataLoader()
 #print(my_dl._get_all_values_from_circuit_breaker_states("TCS"))
