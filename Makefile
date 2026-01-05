@@ -1,12 +1,25 @@
+SEEDER := scripts/seed_benchmark.py
+
 .PHONY: setup analyze test lint clean
 
 setup:
 	@echo ">>> Setting up environment"
 	pip install --upgrade uv
 	uv sync
+	@$(MAKE) hydrate
 
-# Usage:
-# make analyze ARGS="--ticker TCS --start 2024-01-01 --end 2024-12-31"
+hydrate:
+	@echo ">>> Hydrating local database from CSV source..."
+	# We use 'uv run' to ensure we use the correct virtual environment
+	# We call the specific seeder functions to build the initial state
+	uv run python3 -c "\
+	from src.logic.seeder import seed_database; \
+	seed_database('NIFTY50', 'NIFTY50_id.csv'); \
+	seed_database('TCS', 'TCS_id.csv'); \
+    seed_database('ITC', 'ITC_id.csv') \   
+	seed_database('RELIANCE', 'RELIANCE_id.csv')"
+	@echo ">>> Environment and Database ready."
+
 
 analyze:
 	@echo ">>> Running QuantSim Toolkit"
@@ -25,17 +38,14 @@ lint:
 		--warn-redundant-casts
 
 clean:
-	rm -rf .pytest_cache .mypy_cache test-results
-
-# Usage:
-# make validate ARGS="-tname TCS"
+	@echo ">>> Removing temporary artifacts..."
+	find . -type d -name "__pycache__" -exec rm -rf {} +
+	rm -rf .pytest_cache .mypy_cache test-results *.db
+	@echo ">>> Done."
 
 validate:
 	@echo "Running data validation..."
 	uv run python3 -m src.main validate $(ARGS)
-
-# Usage:
-# make download ARGS="-symbol NMDC -sdate 2025-09-01 -edate 2025-09-23"
 
 download:
 	@echo "Running data download..."
