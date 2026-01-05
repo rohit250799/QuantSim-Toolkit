@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 import numpy as np
 import pandas as pd
 
-from db.database import execute_query, get_prod_conn
+from db.database import execute_query, get_prod_conn, get_db_path
 from db.db_queries import (
     analysis_results_table_creation_query,
     circuit_breaker_states_table_creation_query,
@@ -26,6 +26,8 @@ from db.db_queries import (
     system_logs_table_creation_query,
     validation_log_table_creation_query,
     insert_record_into_analysis_results_table,
+    check_if_ticker_exists_in_price_data, 
+    index_creation_for_price_data_table
 )
 from src.custom_errors import EmptyRecordReturnError
 from src.quant_enums import Circuit_State, LogLevel
@@ -41,8 +43,10 @@ class DataLoader:
     """
 
     def __init__(self, db_conn: None | Connection = None) -> None:
+        db_path = get_db_path()
+        db_path.parent.mkdir(parents=True, exist_ok=True)
         self.prod_db_connection = db_conn if db_conn is not None else get_prod_conn()
-        #self._run_migrations()
+        self._run_migrations()
 
     def get_all_existing_tables(self) -> Any:
         """Get the names of all the existing tables in the db"""
@@ -64,6 +68,7 @@ class DataLoader:
             cursor = conn.cursor()
             cursor.execute("BEGIN TRANSACTION")
             cursor.execute(price_data_table_creation_query)
+            cursor.execute(index_creation_for_price_data_table),
             cursor.execute(circuit_breaker_states_table_creation_query)
             cursor.execute(symbol_table_creation_query)
             cursor.execute(system_logs_table_creation_query)
@@ -115,6 +120,18 @@ class DataLoader:
             ),
         )
         return
+    
+    def ticker_exists(self, ticker: str) -> bool:
+        """
+        Queries the price_data table in the db for the ticker's existence
+
+        Returns: True if the ticker exists and False if it does not exist
+        """
+        conn = self.prod_db_connection
+        cursor = conn.cursor()
+        cursor.execute(check_if_ticker_exists_in_price_data, (ticker, ))
+        return cursor.fetchone() is not None
+
 
     def _get_all_values_from_circuit_breaker_states(self, ticker: str) -> None:
         conn = self.prod_db_connection
@@ -418,6 +435,18 @@ class DataLoader:
             logger.info('record inserted in analysis_results table is: %s', last_record)
         
         return
+    
+    # def ensure_reference_data(self, benchmark: str) -> None:
+    #     """
+    #     Function to guarantee minimal viable quant stance
+    #     Its safe to be called on every startup
+    #     """
+    #     if self.ticker_exists(benchmark):
+    #         logger.info('The ticker exists. Returning None from ensure_reference_data function')
+    #         return
+        
+    #     logger.info('Bootstrapping benchmark: %s', benchmark)
+    #     self.
     
 #my_dl = DataLoader()
 #print(my_dl._get_all_values_from_circuit_breaker_states("TCS"))
