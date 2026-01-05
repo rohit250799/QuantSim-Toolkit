@@ -56,27 +56,32 @@ The toolkit is executed via a CLI interface.
 
 ### Example command to run in codespaces
 
-# To run unit tests:
+### To seek help:
+make help
+
+### To run unit tests:
 make test
 
-# To run data validation
-make validate ARGS="--tickerName TCS"
+### To run data validation
+make validate ARGS="--tickerName RELIANCE --startdate 2025-08-01 --enddate 2025-09-21"
 
-# To use the linter and perform mypy strict checking
+### To use the linter and perform mypy strict checking
 make lint
 
-# Perform analysis
-make analyze ARGS="--ticker_element TCS --start_date 2025-08-01 --end_date 2025-09-21"
+### Perform analysis
+make analyze ARGS="--ticker_element RELIANCE --start_date 2025-09-12 --end_date 2025-09-22"
 
-# To download data
+### To download data
 make download ARGS="--stockSymbol SBI --startdate 2025-08-16 --enddate 2025-09-23" 
 
-# To run security check with Bandit
+### To run security check with Bandit
 make securityCheck
 
 ---
 
 Trying out the features(all commands should be entered in the terminal from the root directory):
+
+**Validation and Analysis commands will no longer read data from CSV -> convert it to a dataframe -> use it. Instead, data will be loaded direcyly from the db tables**
 
 Activate the virtual environment first by using **source .venv/bin/activate** from the root directory
 
@@ -112,6 +117,10 @@ data like **checking for gaps**, **checking outliers** and **checking for stale 
     last year to today in a CSV file and have used it for the Analysis (as a benchmark). So, there is no extra API used, but I have just expanded the Data Ingestion layer by just downloading and loading the Nifty50 data
     into a DataFrame using a simple Python script found here: scripts/seed_benchmark.py 
 
+The results of the analysis (results_payload) will be saved into the analysis_results table, which can be queried for future uses
+
+![Results payload to save into analysis_results table](screenshots/results_payload.png)
+
 3. Now, the cumulative returns for the entire portfolio and for individual assets can be calculated for plotting it into line charts for easier understanding.
 Simply navigate to the **portfolio_analyzer.py** file and run it in the terminal. Enter number 2 as input and then the chart will be displayed on the screen and will be saved in the plots directory as well. 
 
@@ -122,6 +131,11 @@ The chart will look like this:
 have downloaded. The validation will be performed and the logs will be displayed on your logs file 
 
 ![Validate data and log results](screenshots/run_validation_and_log_results.png)
+
+Now, on performing validation - a validation score will also be displayed (range from 0 to 1), along with the number of gaps, outliers and stale data records. Every anomaly from gaps to outliers and stale data record will
+carry their own weightage during calculation of validation (data integrity) score and will be deducted accordingly.
+
+![Validation score](screenshots/validation_score.png)
 
 5. Now, it comes included with a **production grade error handling system. A Circuit breaker mechanism** is implemented which will **keep transitioning between states based on the API call results**. API call failures will **implement retry logic with exponential backoff and structured logging** - to help in easier debugging.
 
