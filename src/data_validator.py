@@ -19,7 +19,8 @@ class DataValidator:
         
         Logs: issues to the log file
 
-        Returns: original Dataframe and a report dict showing the number of gaps, outliers and stale data records in dataset
+        Returns: original Dataframe with extra columns for changes in price columns listed columns and a report dict 
+        showing the number of gaps, outliers and stale data records in dataset
         """
         if not isinstance(df.index, pd.DatetimeIndex):
             raise TypeError(f"Expected DatetimeIndex, got {type(df.index).__name__}. Ensure date column is parsed and set as index.")

@@ -52,7 +52,7 @@ def configure_logging() -> None:
     )
 
     logging.getLogger("cli").addHandler(
-        make_file_handler("cli.log", logging.INFO)
+        make_file_handler("cli.log", logging.DEBUG)
     )
 
     # Global error sink
