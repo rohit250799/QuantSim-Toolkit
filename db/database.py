@@ -3,6 +3,7 @@ import os
 import sqlite3
 import logging
 from dotenv import load_dotenv
+from pathlib import Path
 
 load_dotenv()
 PROD_DB_PATH = "db/quantsim.db"
@@ -86,6 +87,20 @@ def insert_bulk_data(db_path: str, records: List[Tuple[Any, ...]]) -> int:
     finally:
         conn.close()
     return records_inserted
+
+def get_db_path() -> Path:
+    """
+    Serves as the Deterministic DB Location to handle the following:
+    - CI / Github codespaces: auto-created
+    - Local: predictable
+    - Prod: overridable via env
+    """
+
+    env_path = os.getenv("DB_PATH")
+    if env_path:
+        return Path(env_path)
+    
+    return Path('db/quantsim.db')
 
 #for timestamp, epoch unit is: unix epoch seconds
 

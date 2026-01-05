@@ -135,3 +135,11 @@ ALTER TABLE analysis_results RENAME COLUMN volatility to ticker_volatility
 add_new_column_benchmark_volatility_in_analysis_results_query: str = """
 ALTER TABLE analysis_results ADD COLUMN benchmark_volatility REAL
 """
+
+check_if_ticker_exists_in_price_data: str = """
+SELECT 1 FROM price_data WHERE ticker = ? LIMIT 1
+"""
+
+index_creation_for_price_data_table: str = """
+CREATE INDEX idx_price_data_ticker_timestamp ON price_data (ticker, time)
+"""
