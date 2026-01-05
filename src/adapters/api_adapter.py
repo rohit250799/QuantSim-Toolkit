@@ -35,34 +35,32 @@ class ApiAdapter:
 
             if api_calling_response_code == 200:
                 if "Error Message" in api_calling_response.text:
-                    logging.debug('The error is: %s', api_calling_response.text)
-                    logging.debug('Error in API response. Please check your parameters again')
+                    logger.debug('The error is: %s. Error in API response. Please check the parameters again.', api_calling_response.text)
                     return None
                 elif "Note" in api_calling_response.text:
-                    logging.debug('The error is: %s', api_calling_response.text)                
-                    logging.info('Soft rate limit')
+                    logger.debug('The error is: %s. Soft rate limit.', api_calling_response.text)
                     fetching_failure_counts += 1
                     time.sleep(wait_time)
                     current_trial_number += 1
                 elif "Time Series (Daily)" in api_calling_response.text:
-                    logging.info('API call successful from api call with retry function')
+                    logger.info('API call successful from api call with retry function')
                     raw_data = api_calling_response.json()
-                    logging.debug('The raw data from the api call is: %s', raw_data)
-                    print(f'The raw data from the API call is: {raw_data}')
+                    #logging.debug('The raw data from the api call is: %s', raw_data)
+                    #print(f'The raw data from the API call is: {raw_data}')
                     response_dict_data = cast(Dict[str, Any], raw_data)
-                    logging.debug('The response dict data is: %s', response_dict_data)
+                    #logging.debug('The response dict data is: %s', response_dict_data)
                     return response_dict_data
                 else:
-                    logging.debug('Unknown or Empty response. Implementing exponential backoff strategy by sleeping for %d seconds', wait_time)
+                    logger.debug('Unknown or Empty response. Implementing exponential backoff strategy for %d seconds', wait_time)
                     current_trial_number += 1
                     time.sleep(wait_time)
                     fetching_failure_counts += 1
             else:
-                logging.debug('Some http errors have occured. Implementing backoff by sleeping for %d seconds', wait_time)
+                logger.debug('Some http errors have occured. Implementing backoff by sleeping for %d seconds', wait_time)
                 fetching_failure_counts += 1
                 time.sleep(wait_time)
                 current_trial_number += 1
-        logging.debug('5 attempts have been used. Returning None')
+        logger.debug('5 attempts have been used. Returning None')
         return None
 
     def fetch_data(self, ticker: str, start_date: pd.Timestamp, end_date: pd.Timestamp) -> pd.DataFrame | None:
@@ -76,12 +74,12 @@ class ApiAdapter:
         """
         api_call_with_retry_result = self._api_call_with_retry(symbol=ticker, params=None)
         if not api_call_with_retry_result:
-            logging.info('In fetch data function, the api call with retry returned Falsy values. So, we return None')
+            logger.info('In fetch data function, the api call with retry returned Falsy values. So, we return None')
             return None
-        logging.debug('The api call with retry result in fetch data is: %s', api_call_with_retry_result)
+        logger.debug('The api call with retry result in fetch data is: %s', api_call_with_retry_result)
         ts = api_call_with_retry_result.get('Time Series (Daily)')
         if not ts:
-            logging.info('No key Time Series (Daily). Raising Key error')
+            logger.info('No key Time Series (Daily). Raising Key error')
             raise KeyError('Key not found')
         
         df = (
@@ -105,6 +103,6 @@ class ApiAdapter:
         })
 
         filtered_dataframe_based_on_daterange = df.loc[start_date:end_date]
-        logging.debug('The filtered dataframe is: %s', filtered_dataframe_based_on_daterange)
+        logger.debug('The filtered dataframe is: %s', filtered_dataframe_based_on_daterange)
         print(f'The filtered dataframe is: {filtered_dataframe_based_on_daterange}')
         return filtered_dataframe_based_on_daterange
