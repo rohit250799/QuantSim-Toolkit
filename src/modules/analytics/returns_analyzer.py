@@ -97,12 +97,23 @@ def calculate_cummulative_returns(df: pd.DataFrame) -> Tuple[np.float64, np.floa
     logger.info('The ticker cummulative return is: %s and the benchmark cummulative return is: %s', ticker_cummulative_return, benchmark_cummulative_return)
     return (ticker_cummulative_return, benchmark_cummulative_return)
 
-def calculate_annualized_volatility(df: pd.DataFrame) -> Tuple[np.float64, np.float64]:
+def calculate_annualized_volatility(df: pd.DataFrame, ticker_returns_col:str = 'ticker_close_returns', benchmark_returns_col:str = 'benchmark_close_returns') -> Tuple[np.float64, np.float64]:
     """
     Calculates the Standard Deviation of the ticker's daily returns and returns its annualized value
     """
-    ticker_daily_returns_standard_deviation = df['ticker_close_log_return'].std(skipna=True)
-    benchmark_daily_returns_standard_deviation = df['benchmark_close_log_return'].std(skipna=True)
+    REQUIRED_COLUMNS = (
+        ticker_returns_col,
+        benchmark_returns_col,
+    )
+
+    missing = [c for c in REQUIRED_COLUMNS if c not in df.columns]
+    if missing:
+        raise ValueError(
+            f"Invalid input dataframe: missing required columns {missing}"
+        )
+    
+    ticker_daily_returns_standard_deviation = df[ticker_returns_col].std(skipna=True)
+    benchmark_daily_returns_standard_deviation = df[benchmark_returns_col].std(skipna=True)
 
     ticker_annualized_volatility = ticker_daily_returns_standard_deviation * (252 ** 0.5)
     benchmark_annualized_volatility = benchmark_daily_returns_standard_deviation * (252 ** 0.5)
