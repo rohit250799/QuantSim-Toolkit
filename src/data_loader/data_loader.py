@@ -45,7 +45,7 @@ class DataLoader:
     def __init__(self, db_conn: None | Connection = None) -> None:
         db_path = get_db_path()
         db_path.parent.mkdir(parents=True, exist_ok=True)
-        self.prod_db_connection = db_conn if db_conn is not None else get_prod_conn()
+        self.prod_db_connection = db_conn if db_conn is not None else get_prod_conn(db_path)
         self._run_migrations()
 
     def get_all_existing_tables(self) -> Any:
@@ -65,24 +65,20 @@ class DataLoader:
         """Handles one-time cleanup and schema creation"""
         conn = self.prod_db_connection
         try:
-            cursor = conn.cursor()
-            cursor.execute("BEGIN TRANSACTION")
-            cursor.execute(price_data_table_creation_query)
-            cursor.execute(index_creation_for_price_data_table),
-            cursor.execute(circuit_breaker_states_table_creation_query)
-            cursor.execute(symbol_table_creation_query)
-            cursor.execute(system_logs_table_creation_query)
-            cursor.execute(validation_log_table_creation_query)
-            cursor.execute(system_config_table_creation_query)
-            cursor.execute(analysis_results_table_creation_query)
-            conn.commit()
+            with conn:
+                cursor = conn.cursor()
+                cursor.execute(price_data_table_creation_query)
+                cursor.execute(index_creation_for_price_data_table)
+                cursor.execute(circuit_breaker_states_table_creation_query)
+                cursor.execute(symbol_table_creation_query)
+                cursor.execute(system_logs_table_creation_query)
+                cursor.execute(validation_log_table_creation_query)
+                cursor.execute(system_config_table_creation_query)
+                cursor.execute(analysis_results_table_creation_query)
         except sqlite3.Error as e:
             logger.debug("An error occured: %s", e)
-            conn.rollback()
-
+            raise
         else:
-            last_record = cursor.fetchone()
-            logger.debug("Records %s inserted in the price_data table", last_record)
             self.insert_log_entry(
                 level=LogLevel.INFO.value,
                 source="Data loader module",
@@ -436,17 +432,5 @@ class DataLoader:
         
         return
     
-    # def ensure_reference_data(self, benchmark: str) -> None:
-    #     """
-    #     Function to guarantee minimal viable quant stance
-    #     Its safe to be called on every startup
-    #     """
-    #     if self.ticker_exists(benchmark):
-    #         logger.info('The ticker exists. Returning None from ensure_reference_data function')
-    #         return
-        
-    #     logger.info('Bootstrapping benchmark: %s', benchmark)
-    #     self.
-    
-#my_dl = DataLoader()
+my_dl = DataLoader()
 #print(my_dl._get_all_values_from_circuit_breaker_states("TCS"))
