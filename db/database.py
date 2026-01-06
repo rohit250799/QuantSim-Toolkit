@@ -30,15 +30,27 @@ def list_tables(db_path: str = PROD_DB_PATH) -> List[str]:
     conn.close()
     return tables
 
-def get_prod_conn(db_path: str = PROD_DB_PATH) -> sqlite3.Connection:
-    try: 
-        conn: sqlite3.Connection = sqlite3.connect(db_path)
-    except ConnectionError as e:
-        logging.debug('There has been a Connection error while connecting to the quantsim database, Error: %s', e)
+def get_prod_conn(db_path: Path) -> sqlite3.Connection:
+    """
+    Fetches the connection to the production Database
+
+    Returns - the sqlite3.Connection to the production database
+    """
+    try:
+        conn = sqlite3.connect(str(db_path))
+        conn.execute("PRAGMA foreign_keys = ON")
+    except sqlite3.Error as e:
+        logging.debug(
+            "Connection error while connecting to DB at %s: %s",
+            db_path,
+            e,
+        )
         raise
     else:
-        logging.info('Successfully connected to thhe database. Now, returning the connection object!')
+        logging.info("Connected to database at %s", db_path)
         return conn
+
+
 
 def execute_query(conn: sqlite3.Connection, query: str, params: tuple[Any, ...] = ()) -> Tuple[Any, ...]:
     """
