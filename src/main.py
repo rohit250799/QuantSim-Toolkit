@@ -14,7 +14,7 @@ from src.data_validator import DataValidator
 from src.flow_controller import FlowController
 from src.analysis_module import AnalysisModule
 from src.logging_config import configure_logging
-from db.database import get_prod_conn, PROD_DB_PATH
+from db.database import get_prod_conn, PROD_DB_PATH, get_db_path
 
 
 LOG_DIR = Path("logs")
@@ -27,6 +27,8 @@ logging.basicConfig(
     format=LOG_FORMAT
 )
 
+db_path: Path = get_db_path()
+
 def main() -> None:
     """Main function for the project - serves as the main entry point of execution"""
     configure_logging()
@@ -34,7 +36,7 @@ def main() -> None:
     logger.info("Starting Application...\n")
 
     print('Quantsim-Toolkit - running main pipeline...\n')
-    conn = get_prod_conn(PROD_DB_PATH)
+    conn = get_prod_conn(db_path)
     data_loader = DataLoader(conn)
     circuit_breaker = CircuitBreaker(data_loader)
     data_validator = DataValidator(data_loader)
