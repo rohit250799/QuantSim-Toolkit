@@ -1,6 +1,6 @@
 import logging
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlite3 import Connection
 from typing import Any, Dict, Tuple
 from zoneinfo import ZoneInfo
@@ -26,11 +26,12 @@ from db.db_queries import (
     system_logs_table_creation_query,
     validation_log_table_creation_query,
     insert_record_into_analysis_results_table,
-    check_if_ticker_exists_in_price_data, 
-    index_creation_for_price_data_table
+    check_if_ticker_exists_in_symbols_table, 
+    index_creation_for_price_data_table, 
+    check_if_db_is_empty_query
 )
-from src.custom_errors import EmptyRecordReturnError
 from src.quant_enums import Circuit_State, LogLevel
+#from scripts.hydrate_db import hydrate_environment
 
 logger = logging.getLogger("db")
 
@@ -47,6 +48,8 @@ class DataLoader:
         db_path.parent.mkdir(parents=True, exist_ok=True)
         self.prod_db_connection = db_conn if db_conn is not None else get_prod_conn(db_path)
         self._run_migrations()
+        if self.is_db_empty():
+            logger.info('The db is empty. Need to call the \'make hydrate\' command to fix this from the terminal ')
 
     def get_all_existing_tables(self) -> Any:
         """Get the names of all the existing tables in the db"""
@@ -116,18 +119,6 @@ class DataLoader:
             ),
         )
         return
-    
-    def ticker_exists(self, ticker: str) -> bool:
-        """
-        Queries the price_data table in the db for the ticker's existence
-
-        Returns: True if the ticker exists and False if it does not exist
-        """
-        conn = self.prod_db_connection
-        cursor = conn.cursor()
-        cursor.execute(check_if_ticker_exists_in_price_data, (ticker, ))
-        return cursor.fetchone() is not None
-
 
     def _get_all_values_from_circuit_breaker_states(self, ticker: str) -> None:
         conn = self.prod_db_connection
@@ -229,6 +220,7 @@ class DataLoader:
         Primary data storage method
         Converts DataFrame dates to UTC UNIX Epoch integers. Inserts data into price_data table
         """
+        self.ensure_symbol_exists(ticker)
         conn = self.prod_db_connection
         if not isinstance(df.index, pd.DatetimeIndex):
             raise TypeError("Dateframe must be indexed by DateTimeIndex")
@@ -241,7 +233,6 @@ class DataLoader:
 
         # Create epoch column WITHOUT destroying index
         df_to_insert = df.copy()
-        # df_to_insert["timestamp"] = (ts_index.to_numpy().view("int64") // 10**9).astype("int64")
         df_to_insert["timestamp"] = (ts_index.astype("int64") // 10**9).astype("int64")
 
         df_to_insert["ticker"] = ticker
@@ -431,6 +422,35 @@ class DataLoader:
             logger.info('record inserted in analysis_results table is: %s', last_record)
         
         return
+    
+    def is_db_empty(self) -> bool:
+        """
+        Checks whether the database is empty or not
+
+        Returns - True if the db is empty else, vice-versa
+        """
+        cursor = self.prod_db_connection.cursor()
+        cursor.execute(check_if_db_is_empty_query)
+        result = cursor.fetchone()
+        if result is None:
+            return True
+        count = int(result[0])
+        return count == 0
+    
+    def ensure_symbol_exists(self, ticker: str) -> None:
+        """
+        Ensures the ticker symbol exists in the symbols table 
+        """
+        cursor = self.prod_db_connection.cursor()
+        cursor.execute(check_if_ticker_exists_in_symbols_table, (ticker, ))
+        if cursor.fetchone():
+            logger.info('The ticker already exists in the symbols table')
+            return
+        
+        created_at_unix_timestamp = int(datetime.now(timezone.utc).timestamp())
+        cursor.execute(insert_or_update_record_in_symbols_table_query, (ticker, None, None, None, None, created_at_unix_timestamp))
+
+
     
 my_dl = DataLoader()
 #print(my_dl._get_all_values_from_circuit_breaker_states("TCS"))
