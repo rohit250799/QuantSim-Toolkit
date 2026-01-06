@@ -55,27 +55,48 @@ def load_csv_to_dataframe(csv_file_name: str) -> pd.DataFrame:
         #Load and Parse
         df = pd.read_csv(file_path, usecols=list(mapping.keys()))
         df.rename(columns=mapping, inplace=True)
+        
+        # Convert to DatetimeIndex (DataLoader requirement)
+        # We handle conversion here so the Validator and Loader receive standard types
+        df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True, errors='coerce')
+        df = df.dropna(subset=['timestamp']).copy()
+        df.set_index('timestamp', inplace=True)
 
-        # 3. Type-Safe Unix conversion (Mypy friendly)
+        if 'volume' not in df.columns:
+            df['volume'] = 0
+
+        df = df.drop_duplicates().sort_index()
+        if df.empty:
+            raise ValueError(f"{csv_file_name} produced empty dataframe after parsing")
+
+        return df
         # We ensure it's a Series to avoid DatetimeIndex/Series confusion
-        time_series = pd.to_datetime(df['timestamp'], utc=True, errors='coerce')
+        # time_series = pd.to_datetime(df['timestamp'], utc=True, errors='coerce')
 
-        # Filter out rows where timestamp couldn't be parsed
-        df = df[time_series.notna()].copy()
-        time_series = time_series.dropna()
+        # mask = time_series.notna()
+        # df = df.loc[mask].copy()
 
-        # Convert to Unix seconds
-        df['timestamp'] = (time_series.astype(np.int64) // 10**9).astype(int)
+        # df['timestamp'] = (
+        #     time_series.loc[mask]
+        #     .astype("int64") // 10**9
+        # ).astype(int)
        
         #Final cleaning
-        df = df.drop_duplicates(subset=['timestamp']).sort_values('timestamp')
+        # df = df.drop_duplicates(subset=['timestamp']).sort_values('timestamp')
 
-        logger.debug('The head of the dataframe is: %s', df.head)
-        logger.debug('\n The dataframe shape: %s', df.shape)
-        logger.debug('\n The dataframe columns: %s', df.columns.to_list())
-        logger.debug('Seeder loaded %s: %d rows', csv_file_name, len(df))
+        # logger.debug('The head of the dataframe is: %s', df.head)
+        # logger.debug('\n The dataframe shape: %s', df.shape)
+        # logger.debug('\n The dataframe columns: %s', df.columns.to_list())
+        # logger.debug('Seeder loaded %s: %d rows', csv_file_name, len(df))
+
         
-        return df
+        # if df['timestamp'].dtype != 'int64':
+        #     raise TypeError("timestamp column must be int64 (epoch seconds)")
+
+        # if df['timestamp'].min() < 1_000_000_000:
+        #     raise ValueError("timestamp appears to be non-epoch (too small)")
+
+        # return df
     
     except Exception as e:
         logger.error('Fail to parse %s due to error: %s', csv_file_name, e)
@@ -98,17 +119,12 @@ def seed_database(ticker_name: str, csv_filename: str) -> None:
         data_loader = DataLoader(conn)
         data_validator = DataValidator(data_loader)
 
-        if data_loader.ticker_exists(ticker_name):
-            logger.info('Ticker %s already exists. Skipping its seeding.', ticker_name)
-            return
+        data_loader.ensure_symbol_exists(ticker=ticker_name)
 
         df = load_csv_to_dataframe(csv_filename)
+        clean_df, report = data_validator.validate_and_clean(ticker_name, df, ['close'])
 
-        data_loader.insert_daily_data(ticker_name, df) #ensuring the loader receives timestamp column
-        
-        # 3. Validation (Audit)
-        # We audit 'close' to ensure the quality score is captured before ingestion
-        _, report = data_validator.validate_and_clean(ticker_name, df, ['close'])
+        data_loader.insert_daily_data(ticker_name, clean_df) #ensuring the loader receives timestamp column
         score = data_validator.calculate_quality_score(report)
         logger.debug(
             "Successfully seeded %s from %s with length: %d rows. (Quality Score: %.2f)", 
@@ -121,24 +137,7 @@ def seed_database(ticker_name: str, csv_filename: str) -> None:
     finally:
         conn.close()
 
-def hydrate_environment() -> None:
-    """
-    Convenience function to hydrate the database for remote environments (Codespaces/CI).
-    Add all your 'Golden Sample' tickers here.
-    """
-    # Hydrate the Benchmark
-    seed_database('NIFTY50', 'NIFTY50_id.csv')
 
-    # Hydrate TCS
-    seed_database('TCS', 'TCS_id.csv')
-    seed_database('ITC', 'ITC_id.csv')    
-    seed_database('RELIANCE', 'RELIANCE_id.csv')
-
-    return    
-
-if __name__ == '__main__':
-    #If run directly, performing the full environmemt hydration
-    hydrate_environment()
 
     
 # seed_database()
