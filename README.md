@@ -54,13 +54,22 @@ How you can try it out in an interactive sandbox environment **Github Codespaces
 
 The toolkit is executed via a CLI interface.
 
-### Example command to run in codespaces
+### Example command to run in codespaces (maintain the order of running)
+
+### Activate virtual environment in Github codespaces (if not already activated):
+source .venv/bin/activate - run from the terminal
 
 ### To seek help:
 make help
 
 ### To run unit tests:
 make test
+
+### To clean the db (remove temporary artefacta)
+make clean
+
+### To hydrate the db with seeded data
+make hydrate
 
 ### To run data validation
 make validate ARGS="--tickerName RELIANCE --startdate 2025-08-01 --enddate 2025-09-21"
