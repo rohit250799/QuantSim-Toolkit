@@ -1,6 +1,8 @@
 import logging
 import pandas as pd
+import numpy as np
 from pathlib import Path
+from typing import Dict
 
 from src.data_loader.data_loader import DataLoader
 from src.data_validator import DataValidator
@@ -14,7 +16,7 @@ DATA_DIR = BASE_DIR / "src" / "data"
 def load_csv_to_dataframe(csv_file_name: str) -> pd.DataFrame:
     """
     Reads your local Nifty50 CSV, format it to match our internal price_data schema, and "hydrate" 
-    the database so the rest of the system treats it like any other ticker. Standardizes CSV data for the DB. 
+    the database so the rest of the system treats it like any other ticker. Standardizes CSV data for the DB with strict type safety. 
     Handles:
     1. 'date' vs 'timestamp' column names.
     2. Case sensitivity.
@@ -31,65 +33,53 @@ def load_csv_to_dataframe(csv_file_name: str) -> pd.DataFrame:
     headers = pd.read_csv(file_path, nrows=0).columns.tolist()
     
     # 2. Map required columns (case-insensitive)
-    mapping = {}
-    required_targets = ['date', 'open', 'high', 'low', 'close', 'volume']
+    mapping: Dict[str, str] = {}
+    required_targets = ['open', 'high', 'low', 'close', 'volume']
 
     # Handle the Time column specifically
     time_col = next((h for h in headers if h.lower() in ['date', 'timestamp']), None)
     if not time_col:
         raise ValueError(f"No time-based column (date/timestamp) found in {csv_file_name}")
+    
     mapping[time_col] = 'timestamp'
 
-    # Handle OHLCV
     for req in required_targets:
         match = next((h for h in headers if h.lower() == req), None)
         if match:
             mapping[match] = req
-        else:
-            raise ValueError(f"Required column '{req}' not found in {csv_file_name}")
-
-    for req in required_targets:
-        # Find the actual column name in the CSV that matches the requirement
-        match = next((h for h in headers if h.lower() == req), None)
-        if match:
-            mapping[match] = req
-        else:
-            raise ValueError(f"Required column '{req}' not found in {csv_file_name}. Found: {headers}")
-    
-    try:
-        #df = pd.read_csv(file_path, usecols=['date', 'open', 'high', 'low', 'close', 'volume'], parse_dates=['date'])[['date', 'open', 'high', 'low', 'close', 'volume']]
-        df = pd.read_csv(file_path, usecols=list(mapping.keys()), parse_dates=[time_col]) #load necessary cols
+        else: 
+            #If volume is missing, its defaulted to 0. But OHLC must always exist
+            logger.debug("Optional/Missing column '%s' in %s", req, csv_file_name)
         
-        #rename to internal lowercase canonical names - standardize index to timestamp
+    try:
+        #Load and Parse
+        df = pd.read_csv(file_path, usecols=list(mapping.keys()))
         df.rename(columns=mapping, inplace=True)
 
-        # 4. Standardize for Unix Epoch conversion in DataLoader
-        # We ensure it is a DatetimeIndex and UTC aware
-        #df['date'] = pd.to_datetime(df['date'])
-        df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True).astype('int64') // 10 ** 9
+        # 3. Type-Safe Unix conversion (Mypy friendly)
+        # We ensure it's a Series to avoid DatetimeIndex/Series confusion
+        time_series = pd.to_datetime(df['timestamp'], utc=True, errors='coerce')
 
-        # Drop duplicates to prevent primary key/unique constraint violations
-        df = df.drop_duplicates(subset=['timestamp'])
+        # Filter out rows where timestamp couldn't be parsed
+        df = df[time_series.notna()].copy()
+        time_series = time_series.dropna()
+
+        # Convert to Unix seconds
+        df['timestamp'] = (time_series.astype(np.int64) // 10**9).astype(int)
+       
+        #Final cleaning
+        df = df.drop_duplicates(subset=['timestamp']).sort_values('timestamp')
 
         logger.debug('The head of the dataframe is: %s', df.head)
         logger.debug('\n The dataframe shape: %s', df.shape)
         logger.debug('\n The dataframe columns: %s', df.columns.to_list())
-
-        # Format the index for SQLite storage (YYYY-MM-DD HH:MM:SS)
-        # Note: We keep it as a DatetimeIndex for validation, DataLoader handles string conversion
+        logger.debug('Seeder loaded %s: %d rows', csv_file_name, len(df))
+        
         return df
     
     except Exception as e:
         logger.error('Fail to parse %s due to error: %s', csv_file_name, e)
         raise
-        
-    # except FileNotFoundError as e:
-    #     logger.error("Error loading CSV %s: %s", csv_file_name, e)
-    #     raise
-
-    # except ValueError as e:
-    #     logger.debug('Error loading columns: %s. Check if the column names exist in the CSV file.', e)
-    #     raise
     
 def seed_database(ticker_name: str, csv_filename: str) -> None:
     """
@@ -103,20 +93,18 @@ def seed_database(ticker_name: str, csv_filename: str) -> None:
     # Use the existing project DataLoader
     db_path = get_db_path()
     conn = get_prod_conn(db_path)
-
-    data_loader = DataLoader(conn)
-    data_validator = DataValidator(data_loader)
-
-    if data_loader.ticker_exists(ticker_name):
-        logger.info('Ticker %s already exists. Skipping its seeding.', ticker_name)
-        return
     
     try:
-        # 1. Extraction
+        data_loader = DataLoader(conn)
+        data_validator = DataValidator(data_loader)
+
+        if data_loader.ticker_exists(ticker_name):
+            logger.info('Ticker %s already exists. Skipping its seeding.', ticker_name)
+            return
+
         df = load_csv_to_dataframe(csv_filename)
 
-         # 2. Persistence
-        data_loader.insert_daily_data(ticker_name, df)
+        data_loader.insert_daily_data(ticker_name, df) #ensuring the loader receives timestamp column
         
         # 3. Validation (Audit)
         # We audit 'close' to ensure the quality score is captured before ingestion
@@ -129,7 +117,9 @@ def seed_database(ticker_name: str, csv_filename: str) -> None:
 
     except Exception as e:
         logger.info("Failed to seed %s: %s", ticker_name, e)
-        raise
+
+    finally:
+        conn.close()
 
 def hydrate_environment() -> None:
     """
