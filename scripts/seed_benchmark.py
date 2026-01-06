@@ -4,6 +4,7 @@ from pathlib import Path
 
 from src.data_loader.data_loader import DataLoader
 from src.data_validator import DataValidator
+from db.database import get_prod_conn, get_db_path
 
 logger = logging.getLogger("cli")
 
@@ -13,7 +14,11 @@ DATA_DIR = BASE_DIR / "src" / "data"
 def load_csv_to_dataframe(csv_file_name: str) -> pd.DataFrame:
     """
     Reads your local Nifty50 CSV, format it to match our internal price_data schema, and "hydrate" 
-    the database so the rest of the system treats it like any other ticker.
+    the database so the rest of the system treats it like any other ticker. Standardizes CSV data for the DB. 
+    Handles:
+    1. 'date' vs 'timestamp' column names.
+    2. Case sensitivity.
+    3. Conversion to Unix Epoch (seconds).
 
     Returns: A sanitized dataframe which will be seeded to the price_data table in the db
     """
@@ -22,18 +27,49 @@ def load_csv_to_dataframe(csv_file_name: str) -> pd.DataFrame:
         logger.error('File not found at: %s', file_path)
         raise FileNotFoundError(f'Missing source CSV: {file_path}')
     
+    # 1. Read only the header to detect column names
+    headers = pd.read_csv(file_path, nrows=0).columns.tolist()
+    
+    # 2. Map required columns (case-insensitive)
+    mapping = {}
+    required_targets = ['date', 'open', 'high', 'low', 'close', 'volume']
+
+    # Handle the Time column specifically
+    time_col = next((h for h in headers if h.lower() in ['date', 'timestamp']), None)
+    if not time_col:
+        raise ValueError(f"No time-based column (date/timestamp) found in {csv_file_name}")
+    mapping[time_col] = 'timestamp'
+
+    # Handle OHLCV
+    for req in required_targets:
+        match = next((h for h in headers if h.lower() == req), None)
+        if match:
+            mapping[match] = req
+        else:
+            raise ValueError(f"Required column '{req}' not found in {csv_file_name}")
+
+    for req in required_targets:
+        # Find the actual column name in the CSV that matches the requirement
+        match = next((h for h in headers if h.lower() == req), None)
+        if match:
+            mapping[match] = req
+        else:
+            raise ValueError(f"Required column '{req}' not found in {csv_file_name}. Found: {headers}")
+    
     try:
         #df = pd.read_csv(file_path, usecols=['date', 'open', 'high', 'low', 'close', 'volume'], parse_dates=['date'])[['date', 'open', 'high', 'low', 'close', 'volume']]
-        df = pd.read_csv(file_path, usecols=['date', 'open', 'high', 'low', 'close', 'volume'], parse_dates=['date']) #load necessary cols
+        df = pd.read_csv(file_path, usecols=list(mapping.keys()), parse_dates=[time_col]) #load necessary cols
         
-        #with Gemini (unconfirmed) - standardize index to timestamp
-        df.rename(columns={'date': 'timestamp'}, inplace=True)
-        df.set_index('timestamp', inplace=True)
+        #rename to internal lowercase canonical names - standardize index to timestamp
+        df.rename(columns=mapping, inplace=True)
 
-        #normalizing time and ensuring UTC localization
-        df.index = pd.to_datetime(df.index)
-        if df.index.tz is None:
-            df.index = df.index.tz_localize("UTC")
+        # 4. Standardize for Unix Epoch conversion in DataLoader
+        # We ensure it is a DatetimeIndex and UTC aware
+        #df['date'] = pd.to_datetime(df['date'])
+        df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True).astype('int64') // 10 ** 9
+
+        # Drop duplicates to prevent primary key/unique constraint violations
+        df = df.drop_duplicates(subset=['timestamp'])
 
         logger.debug('The head of the dataframe is: %s', df.head)
         logger.debug('\n The dataframe shape: %s', df.shape)
@@ -42,14 +78,18 @@ def load_csv_to_dataframe(csv_file_name: str) -> pd.DataFrame:
         # Format the index for SQLite storage (YYYY-MM-DD HH:MM:SS)
         # Note: We keep it as a DatetimeIndex for validation, DataLoader handles string conversion
         return df
+    
+    except Exception as e:
+        logger.error('Fail to parse %s due to error: %s', csv_file_name, e)
+        raise
         
-    except FileNotFoundError as e:
-        logger.error("Error loading CSV %s: %s", csv_file_name, e)
-        raise
+    # except FileNotFoundError as e:
+    #     logger.error("Error loading CSV %s: %s", csv_file_name, e)
+    #     raise
 
-    except ValueError as e:
-        logger.debug('Error loading columns: %s. Check if the column names exist in the CSV file.', e)
-        raise
+    # except ValueError as e:
+    #     logger.debug('Error loading columns: %s. Check if the column names exist in the CSV file.', e)
+    #     raise
     
 def seed_database(ticker_name: str, csv_filename: str) -> None:
     """
@@ -60,7 +100,11 @@ def seed_database(ticker_name: str, csv_filename: str) -> None:
     2. Validating data integrity
     3. Inserting into the price_data table in the db
     """
-    data_loader = DataLoader()
+    # Use the existing project DataLoader
+    db_path = get_db_path()
+    conn = get_prod_conn(db_path)
+
+    data_loader = DataLoader(conn)
     data_validator = DataValidator(data_loader)
 
     if data_loader.ticker_exists(ticker_name):
@@ -70,18 +114,17 @@ def seed_database(ticker_name: str, csv_filename: str) -> None:
     try:
         # 1. Extraction
         df = load_csv_to_dataframe(csv_filename)
+
+         # 2. Persistence
+        data_loader.insert_daily_data(ticker_name, df)
         
-        # 2. Validation (Audit)
+        # 3. Validation (Audit)
         # We audit 'close' to ensure the quality score is captured before ingestion
         _, report = data_validator.validate_and_clean(ticker_name, df, ['close'])
         score = data_validator.calculate_quality_score(report)
-        
-        # 3. Persistence
-        data_loader.insert_daily_data(ticker_name, df)
-        
         logger.debug(
-            "Successfully seeded %s from %s (Quality Score: %.2f)", 
-            ticker_name, csv_filename, score
+            "Successfully seeded %s from %s with length: %d rows. (Quality Score: %.2f)", 
+            ticker_name, csv_filename, len(df), score
         )
 
     except Exception as e:
