@@ -9,17 +9,9 @@ setup:
 	@$(MAKE) hydrate
 
 hydrate:
-	@echo ">>> Hydrating local database from CSV source..."
-	# We use 'uv run' to ensure we use the correct virtual environment
-	# We call the specific seeder functions to build the initial state
-	uv run python3 -c "\
-	from scripts.seed_benchmark import seed_database; \
-	seed_database('NIFTY50', 'NIFTY50_id.csv'); \
-	seed_database('TCS', 'TCS_id.csv'); \
-	seed_database('ITC', 'ITC_id.csv'); \
-	seed_database('RELIANCE', 'RELIANCE_id.csv')"
-	@echo ">>> Environment and Database ready."
-
+	@echo ">>> Hydrating database from golden CSV samples..."
+	uv run python3 -m scripts.hydrate_db
+	@echo ">>> Database hydration complete."
 
 analyze:
 	@echo ">>> Running QuantSim Toolkit"
