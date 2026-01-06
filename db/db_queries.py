@@ -86,7 +86,7 @@ SELECT * FROM price_data where ticker = ? and timestamp between ? AND ? ORDER BY
 """
 
 insert_or_update_record_in_symbols_table_query: str = """
-INSERT INTO symbols VALUES (?, ?, ?, ?, ?, ?)
+INSERT INTO symbols (ticker, company, exchange, sector, currency, created_at) VALUES (?, ?, ?, ?, ?, ?)
 """
 
 get_all_entries_of_ticker_from_validation_log_table_query: str = """
@@ -136,10 +136,14 @@ add_new_column_benchmark_volatility_in_analysis_results_query: str = """
 ALTER TABLE analysis_results ADD COLUMN benchmark_volatility REAL
 """
 
-check_if_ticker_exists_in_price_data: str = """
-SELECT 1 FROM price_data WHERE ticker = ? LIMIT 1
+check_if_ticker_exists_in_symbols_table: str = """
+SELECT 1 FROM symbols WHERE ticker = ? LIMIT 1
 """
 
 index_creation_for_price_data_table: str = """
 CREATE INDEX IF NOT EXISTS idx_price_data_ticker_timestamp ON price_data (ticker, timestamp)
+"""
+
+check_if_db_is_empty_query: str = """
+SELECT COUNT(1) FROM price_data
 """
