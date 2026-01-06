@@ -141,5 +141,5 @@ SELECT 1 FROM price_data WHERE ticker = ? LIMIT 1
 """
 
 index_creation_for_price_data_table: str = """
-CREATE INDEX idx_price_data_ticker_timestamp ON price_data (ticker, time)
+CREATE INDEX IF NOT EXISTS idx_price_data_ticker_timestamp ON price_data (ticker, timestamp)
 """
