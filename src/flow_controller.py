@@ -84,7 +84,9 @@ class FlowController:
             raise LookupError('No price data found for ticker: %s', ticker)
         
         if not benchmark:
-            benchmark = 'Nifty50_id.csv' 
+            benchmark = 'Nifty50'
+        
+        benchmark = benchmark.replace('_id.csv', '').replace('.csv', '').upper() 
 
         benchmark_dataframe = self.data_loader.get_historical_data(benchmark, start_unix_epoch, end_unix_epoch)
         if benchmark_dataframe.empty or benchmark_dataframe is None:
