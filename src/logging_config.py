@@ -18,8 +18,9 @@ def make_file_handler(filename: str, level: int) -> logging.FileHandler:
 def configure_logging() -> None:
     """Stores all the configurations of the logger"""
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG,
         format=LOG_FORMAT,
+        force=True
     )
 
     logging.getLogger("app").addHandler(
@@ -31,19 +32,19 @@ def configure_logging() -> None:
     )
 
     logging.getLogger("market_data").addHandler(
-        make_file_handler("market_data.log", logging.INFO)
+        make_file_handler("market_data.log", logging.DEBUG)
     )
 
     logging.getLogger("validation").addHandler(
-        make_file_handler("validation.log", logging.INFO)
+        make_file_handler("validation.log", logging.DEBUG)
     )
 
-    logging.getLogger().addHandler(
+    logging.getLogger("pytest").addHandler(
         make_file_handler("pytest_errors.log", logging.ERROR)
     )
 
     logging.getLogger("analytics").addHandler(
-        make_file_handler("analytics.log", logging.INFO)
+        make_file_handler("analytics.log", logging.DEBUG)
     )
 
     logging.getLogger("flow").addHandler(
@@ -51,7 +52,7 @@ def configure_logging() -> None:
     )
 
     logging.getLogger("cli").addHandler(
-        make_file_handler("cli.log", logging.INFO)
+        make_file_handler("cli.log", logging.DEBUG)
     )
 
     # Global error sink

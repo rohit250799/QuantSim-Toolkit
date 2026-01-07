@@ -2,41 +2,63 @@ import pandas as pd
 import logging
 import numpy as np
 from datetime import datetime, timezone
+from typing import Tuple, Dict, List, Mapping
 
 from src.data_loader.data_loader import DataLoader
 from src.quant_enums import ValidationIssueType
 
 logger = logging.getLogger("validation")
+
 class DataValidator:
     def __init__(self, data_loader: DataLoader):
         self.data_loader = data_loader
 
-    def validate_and_clean(self, ticker: str, df: pd.DataFrame) -> pd.DataFrame:
+    def validate_and_clean(self, ticker: str, df: pd.DataFrame, price_columns: List[str]) -> Tuple[pd.DataFrame, Dict[str, int]]:
         """
         Orchestrates:  all checks but does not modify the underlying data (no deleting outliers).
         
         Logs: issues to the log file
 
-        Returns: original Dataframe
+        Returns: original Dataframe with extra columns for changes in price columns listed columns and a report dict 
+        showing the number of gaps, outliers and stale data records in dataset
         """
         if not isinstance(df.index, pd.DatetimeIndex):
             raise TypeError(f"Expected DatetimeIndex, got {type(df.index).__name__}. Ensure date column is parsed and set as index.")
+        
         if df.index.tz is None:
-            df.index = df.index.tz_localize("UTC")
-        df['daily_returns'] = df['close'].pct_change()
+            df = df.copy()
+            #df.index = df.index.tz_localize("UTC")
+            df.index = pd.to_datetime(df.index, utc=True)
+        
+        missing = [c for c in price_columns if c not in df.columns]
+        if missing:
+            raise KeyError(
+                f"Missing price columns: {missing}. "
+                f"Available columns: {list(df.columns)}"
+            )
+
+        df = df.copy()
+
+        for col in price_columns:
+            df[f"{col}_returns"] = df[col].pct_change()
+
         self.data_loader.delete_unresolved_validation_log(ticker)
+
         logger.debug('The dataframe is: \n%s', df)
-        self._check_gaps(ticker, df)
-        self._check_outliers(ticker, df)
-        self._check_stale(ticker, df)
+        report = {
+            'gap_number': self._check_gaps(ticker, df),
+            'outlier_number': self._check_outliers(ticker, df, price_columns),
+            'stale_data_number': self._check_stale(ticker, df, price_columns)
+        }
+        return df, report
 
-        return df
-
-    def _check_gaps(self, ticker: str, df: pd.DataFrame) -> None:
+    def _check_gaps(self, ticker: str, df: pd.DataFrame) -> int:
         """
         Identifies non-sequential timestamps (compares days actually present in the df against the days that the market should have 
         been open). Its assumed, that dataframe is already sorted and indexed by time
         Logs every gap to the log file
+
+        Returns - the number of gaps existing in the file
         """
         data_loader = self.data_loader
         if df.empty:
@@ -53,57 +75,104 @@ class DataValidator:
         logger.debug('The missing days are: %s', missing_days)
 
         for day in missing_days:
-            date_string = day.isoformat()
-            data_loader.insert_validation_issue(ticker, date_string, ValidationIssueType.MISSING_DAY.value, "Missing OHLCV data for this trading day")
+            #date_string = day.isoformat()
+            date_set = int(day.timestamp())
+            data_loader.insert_validation_issue(ticker, date_set, ValidationIssueType.MISSING_DAY.value, "Missing OHLCV data for this trading day")
 
-        return
+        return len(missing_days)
 
-    def _check_outliers(self, ticker: str, df: pd.DataFrame) -> None:
+    def _check_outliers(self, ticker: str, df: pd.DataFrame, price_columns: List[str]) -> int:
         """
         Calculates daily percentage returns. Flags any return exceeding 5 standard deviations (5SD) of the entire series.
+
+        Returns - the number of outliers existing in the ddtaset
         """
-        mean_daily_return = df['daily_returns'].mean()
-        logger.info('The mean daily return is: %f', mean_daily_return)
-
-        daily_returns_standard_deviation = df['daily_returns'].std()
-        logger.info('The standard deviation in closing prices is: %f', daily_returns_standard_deviation)
-
-        five_standard_deviation = 5 * daily_returns_standard_deviation
-        upper_bound_in_five_standard_deviation = mean_daily_return + five_standard_deviation
-        lower_bound_in_five_standard_deviation = mean_daily_return - five_standard_deviation
-
-        signal_mask = (df['daily_returns'] >  upper_bound_in_five_standard_deviation) & (df['daily_returns'] < lower_bound_in_five_standard_deviation)
-        triggered_timestamps = df.index[signal_mask]
-        triggered_indices = df.index[signal_mask]
-
+        total_outliers = 0
         outlier_issue = ValidationIssueType.OUTLIER_5SD.value
-        for timestamp_idx in triggered_indices:
-            logger.debug('The timestamp_idx is: %s and the datatype is: %s', timestamp_idx, type(timestamp_idx))
-            date_string = timestamp_idx.isoformat()
 
-            self.data_loader.insert_validation_issue(ticker=ticker, date=date_string, issue_type=outlier_issue, description='Outlier issue: Return exceeds 5 standard deviation(5SD)')
+        for col in price_columns:
+            returns_col = f"{col}_returns"
 
-        return
+            if returns_col not in df.columns:
+                raise KeyError(f"Missing return column: {returns_col}")
 
-    def _check_stale(self, ticker: str, df: pd.DataFrame) -> None:
+            returns = df[returns_col].dropna()
+            mean = returns.mean()
+            std = returns.std()
+            logger.info(
+                "[%s] mean=%f std=%f (%s)",
+                ticker, mean, std, returns_col
+            )
+
+            upper = mean + 5 * std
+            lower = mean - 5 * std
+            mask = (returns > upper) | (returns < lower)
+            triggered_indices = returns.index[mask]
+
+            for ts in triggered_indices:
+                self.data_loader.insert_validation_issue(
+                    ticker=ticker,
+                    date=ts.isoformat(),
+                    issue_type=outlier_issue,
+                    description=f"5σ outlier detected in {returns_col}",
+                )
+
+            total_outliers += len(triggered_indices)
+        return total_outliers
+
+    def _check_stale(self, ticker: str, df: pd.DataFrame, price_columns: List[str]) -> int:
         """
         Detects and logs if 5 consecutive closing prices are identical AND volume is 0
+
+        Returns- the number of stale rows in the dataset
         """
-        is_volume_zero = (df['volume'] == 0)
-        #checking for identical consecutive closing prices (for 5 days)
-        consecutive_price_count = df.groupby(df['close'] != df['close'].shift(1).cumsum())['close'].transform('size')
-        is_price_consecutive_five = (consecutive_price_count >= 5)
-
-        #combining both above conditions
-        is_stale = is_volume_zero & is_price_consecutive_five
-
-        #identifying rows meeting the above criteria
-        stale_rows = df[is_stale]
         issue_type = ValidationIssueType.STALE_PRICE.value
-        if not stale_rows.empty:
-            for ts in stale_rows.index:
-                ts = ts.tz_localize("UTC") if ts.tzinfo is None else ts
-                unix_date = ts.isoformat()
-                self.data_loader.insert_validation_issue(ticker, unix_date, issue_type, "Stale data has been detected")
+        stale_count = 0
 
-        return
+        for col in price_columns:
+            prices = df[col]
+            # Identify change points
+            price_changed = prices.ne(prices.shift(1))
+            # Run identifiers
+            run_id = price_changed.cumsum()
+
+            # Length of each run
+            run_lengths = prices.groupby(run_id).transform("size")
+
+            # Mask stale runs (>= 5)
+            stale_mask = run_lengths >= 5
+
+            if not stale_mask.any():
+                continue
+
+            stale_indices = prices.index[stale_mask]
+
+            for ts in stale_indices:
+                # Ensure timezone awareness
+                if ts.tzinfo is None:
+                    ts = ts.tz_localize("UTC")
+
+                unix_epoch = int(ts.timestamp())
+
+                self.data_loader.insert_validation_issue(
+                    ticker=ticker,
+                    date=unix_epoch,
+                    issue_type=issue_type,
+                    description=f"Stale price detected in {col} (≥5 identical values)",
+                )
+                stale_count += 1
+        return stale_count
+    
+    def calculate_quality_score(self, report: Mapping[str, int]) -> float:
+        """
+        Takes the dictionary object about the counts of gaps, outliers and stale rows in the dataset as an input to calculate the Data Integrity Score
+
+        Returns - the Data Integrity score
+        """
+        data_quality_initial_score: float = 1.0
+        score = data_quality_initial_score - (report['gap_number'] * 0.05) - (report['outlier_number'] * 0.1) - (report['stale_data_number'] * 0.02)
+        if score < 0:
+            raise ArithmeticError('Score cannot be < 0')
+
+        return score
+    

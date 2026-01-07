@@ -13,7 +13,7 @@ def build_parser() -> argparse.ArgumentParser:
     analyze_parser = subparsers.add_parser("analyze", help="Analyze historical price data")
     analyze_parser.add_argument("-ticker", '--ticker_element', help='The target symbol to perform analysis on', required=True, dest='ticker')
     analyze_parser.add_argument("-texchange", '--ticker_exchange', help='The exchange where the ticker is being traded', default="BSE", dest='tExchange')
-    analyze_parser.add_argument("-benchmark", '--benchmrk_element', help='The benchmark element which the analysis is being performed against', default='NIFTY50', dest='benchmark')
+    analyze_parser.add_argument("-benchmark", '--benchmrk_element', help='The benchmark element which the analysis is being performed against', default='NIFTY50_id.csv', dest='benchmark')
     analyze_parser.add_argument("-bexchange", '--benchmark_exchange', help = 'The the exchange from where this benchmark data is collected', default="NSE", dest='bExchange')
     analyze_parser.add_argument("-start", '--start_date', help = 'The start date for data collection and analysis', default='2025-09-01', dest='startDate')
     analyze_parser.add_argument("-end", '--end_date', help = 'The end date for data collection and analysis', default='2025-09-21', dest='endDate')
@@ -39,6 +39,7 @@ def build_parser() -> argparse.ArgumentParser:
     #validate
     parser_validator = subparsers.add_parser('validate', help='Helps validate data to be used')
     parser_validator.add_argument('-tname', '--tickerName', help='Name of the ticker whose data you want to vaidate', dest='tName')
-    parser_validator.add_argument('-mpath', '--mockPath', help='Path of the file', default='src/data', dest='mPath')
+    parser_validator.add_argument('-sdate', '--startdate', help='Specifies the starting date of validation', required=True, dest='startDate')
+    parser_validator.add_argument('-edate', '--enddate', help='Specifies the ending date of validation', required=True, dest='endDate')
 
     return parser
