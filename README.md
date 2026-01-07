@@ -68,8 +68,8 @@ make test
 ### To clean the db (remove temporary artefacta)
 make clean
 
-### To hydrate the db with seeded data
-make hydrate
+### To setup everything
+make setup
 
 ### To run data validation
 make validate ARGS="--tickerName RELIANCE --startdate 2025-08-01 --enddate 2025-09-21"
@@ -86,6 +86,8 @@ make download ARGS="--stockSymbol SBI --startdate 2025-08-16 --enddate 2025-09-2
 ### To run security check with Bandit
 make securityCheck
 
+### If needed, you can perform hydration to insert seed data in your db, separately from the setup command. Use
+make hydrate
 ---
 
 Trying out the features(all commands should be entered in the terminal from the root directory):
