@@ -28,7 +28,10 @@ from db.db_queries import (
     insert_record_into_analysis_results_table,
     check_if_ticker_exists_in_symbols_table, 
     index_creation_for_price_data_table, 
-    check_if_db_is_empty_query
+    check_if_db_is_empty_query, 
+    temp_price_staging_table_creation_query, 
+    execute_upsert_from_staging_to_main_in_price_data_table_query,
+    drop_staging_table_for_cleanup_query
 )
 from src.quant_enums import Circuit_State, LogLevel
 #from scripts.hydrate_db import hydrate_environment
@@ -73,6 +76,8 @@ class DataLoader:
                 cursor.execute(price_data_table_creation_query)
                 cursor.execute(index_creation_for_price_data_table)
                 cursor.execute(circuit_breaker_states_table_creation_query)
+                #cursor.execute(drop_symbols_table_if_it_exists_query)
+                cursor.execute(temp_price_staging_table_creation_query)
                 cursor.execute(symbol_table_creation_query)
                 cursor.execute(system_logs_table_creation_query)
                 cursor.execute(validation_log_table_creation_query)
@@ -203,57 +208,48 @@ class DataLoader:
             historical_data_dataframe = pd.read_sql_query(
                 sql=get_historical_data_query, con=conn, params=(ticker, start_ts, end_ts)
             )
+            if historical_data_dataframe.empty:
+                logger.info(f"No data found for {ticker} between {start_ts} and {end_ts}")
+                return historical_data_dataframe
+
+
+            # 2. Convert back to DatetimeIndex
+            historical_data_dataframe['timestamp'] = pd.to_datetime(historical_data_dataframe['timestamp'], unit='s', utc=True)
+            historical_data_dataframe.set_index('timestamp', inplace=True)
+            return historical_data_dataframe
+
         except sqlite3.Error as e:
             logger.exception('DB error while fetching historical data from the database')
             raise RuntimeError('DB error while fetching from price_data table') from e
         
-        if historical_data_dataframe.empty:
-            logging.info('The dataframe fetched from price_data is empty. So, returning dataframe')
-            return historical_data_dataframe
-        
-        historical_data_dataframe['timestamp'] = pd.to_datetime(historical_data_dataframe['timestamp'], unit='s', utc=True)
-        historical_data_dataframe = historical_data_dataframe.set_index('timestamp')
-        return historical_data_dataframe
-
     def insert_daily_data(self, ticker: str, df: pd.DataFrame) -> None:
         """
         Primary data storage method
         Converts DataFrame dates to UTC UNIX Epoch integers. Inserts data into price_data table
         """
-        self.ensure_symbol_exists(ticker)
         conn = self.prod_db_connection
-        if not isinstance(df.index, pd.DatetimeIndex):
-            raise TypeError("Dateframe must be indexed by DateTimeIndex")
-
-        # timezone normalization
-        if df.index.tz is None:
-            ts_index = df.index.tz_localize("UTC")
-        else:
-            ts_index = df.index.tz_convert("UTC")
-
-        # Create epoch column WITHOUT destroying index
+        if df.empty:
+            logger.debug('Empty dataframe in insert daily data function')
+            return
+        self.ensure_symbol_exists(ticker)
         df_to_insert = df.copy()
-        df_to_insert["timestamp"] = (ts_index.astype("int64") // 10**9).astype("int64")
-
-        df_to_insert["ticker"] = ticker
-
-        df_to_insert = df_to_insert[
-            ["ticker", "timestamp", "open", "high", "low", "close", "volume"]
-        ]
+        ts_index = pd.to_datetime(df_to_insert.index, utc=True)
+        df_to_insert["timestamp"] = ts_index.astype('int64') // 10**9
+        
+        df_to_insert['ticker'] = ticker
+        cols = ["ticker", "timestamp", "open", "close", "high", "low", "volume"]
+        df_to_insert = df_to_insert[[c for c in cols if c in df_to_insert.columns]]
 
         try:
             with conn:
-                df_to_insert.to_sql(
-                    name="price_data", con=conn, if_exists="append", index=False
-                )
+                df_to_insert.to_sql(name="temp_price_staging", con=conn, if_exists="replace", index=False)
+                conn.execute(execute_upsert_from_staging_to_main_in_price_data_table_query)
+                conn.execute(drop_staging_table_for_cleanup_query)
 
-                logger.info(
-                    "Inserted %d rows for %s into price_data", len(df_to_insert), ticker
-                )
-
+            logger.info("Successfully upserted %d  rows for %s", {len(df_to_insert)}, ticker)
         except sqlite3.Error as e:
             logger.error("Database insertion failed: %s", e)
-            raise ValueError("Error raised during database insertion")
+            raise ValueError("Integrity error during db insertion")
 
         else:
             logger.info("Dataframe inserted successfully!")
@@ -449,6 +445,10 @@ class DataLoader:
         
         created_at_unix_timestamp = int(datetime.now(timezone.utc).timestamp())
         cursor.execute(insert_or_update_record_in_symbols_table_query, (ticker, None, None, None, None, created_at_unix_timestamp))
+        self.prod_db_connection.commit()
+
+        logger.debug('Symbol existence ensured')
+        return
 
 
     
