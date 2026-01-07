@@ -105,24 +105,29 @@ def seed_database(ticker_name: str, csv_filename: str) -> None:
     try:
         data_loader = DataLoader(conn)
         data_validator = DataValidator(data_loader)
+        clean_ticker: str = ticker_name.replace('_id.csv', '').replace('.csv', '')
+        logger.info(f"Seeding {clean_ticker} from {csv_filename}...")
         logger.info('Seed request: %s from %s', ticker_name, csv_filename)
-        data_loader.ensure_symbol_exists(ticker=ticker_name)
+        data_loader.ensure_symbol_exists(ticker=clean_ticker)
         df = load_csv_to_dataframe(csv_filename)
         #df.index = pd.to_datetime(df.index).view('int64') // 10**9
-        clean_df, report = data_validator.validate_and_clean(ticker_name, df, ['close'])
+        clean_df, report = data_validator.validate_and_clean(clean_ticker, df, ['close'])
+        df_to_save = clean_df.copy()
+        df_to_save['timestamp'] = (df_to_save.index.astype('int64') // 10**9)
+        df_to_save['ticker'] = clean_ticker
 
-        data_loader.insert_daily_data(ticker_name, clean_df) #ensuring the loader receives timestamp column
+        data_loader.insert_daily_data(clean_ticker, clean_df) #ensuring the loader receives timestamp column
 
         # VERIFICATION: Double check count immediately
         cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM price_data WHERE ticker = ?", (ticker_name,))
+        cursor.execute("SELECT COUNT(*) FROM price_data WHERE ticker = ?", (clean_ticker,))
         count = cursor.fetchone()[0]
-        print(f"✅ Successfully seeded {ticker_name}. DB count: {count}")
+        print(f"✅ Successfully seeded {clean_ticker}. DB count: {count}")
 
         score = data_validator.calculate_quality_score(report)
         logger.debug(
             "Successfully seeded %s from %s with length: %d rows. (Quality Score: %.2f)", 
-            ticker_name, csv_filename, len(df), score
+            clean_ticker, csv_filename, len(df), score
         )
 
     except Exception as e:

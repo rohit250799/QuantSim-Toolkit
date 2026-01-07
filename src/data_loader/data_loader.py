@@ -76,7 +76,6 @@ class DataLoader:
                 cursor.execute(price_data_table_creation_query)
                 cursor.execute(index_creation_for_price_data_table)
                 cursor.execute(circuit_breaker_states_table_creation_query)
-                #cursor.execute(drop_symbols_table_if_it_exists_query)
                 cursor.execute(temp_price_staging_table_creation_query)
                 cursor.execute(symbol_table_creation_query)
                 cursor.execute(system_logs_table_creation_query)
