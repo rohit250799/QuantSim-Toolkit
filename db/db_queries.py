@@ -11,13 +11,26 @@ CREATE TABLE IF NOT EXISTS price_data (
 )
 """
 
+temp_price_staging_table_creation_query: str = """
+CREATE TABLE IF NOT EXISTS temp_price_staging (
+    ticker TEXT NOT NULL,
+    timestamp INTEGER NOT NULL, 
+    open REAL,
+    close REAL, 
+    high REAL, 
+    low REAL,
+    volume INTEGER,
+    PRIMARY KEY (ticker, timestamp)
+)
+"""
+
 symbol_table_creation_query: str = """
 CREATE TABLE IF NOT EXISTS symbols (
     ticker TEXT NOT NULL PRIMARY KEY, 
     company_name TEXT,
     exchange TEXT,
     sector TEXT, 
-    currency TEXT 
+    currency TEXT, 
     created_at INTEGER NOT NULL
     )
 """
@@ -86,7 +99,7 @@ SELECT * FROM price_data where ticker = ? and timestamp between ? AND ? ORDER BY
 """
 
 insert_or_update_record_in_symbols_table_query: str = """
-INSERT INTO symbols (ticker, company, exchange, sector, currency, created_at) VALUES (?, ?, ?, ?, ?, ?)
+INSERT INTO symbols (ticker, company_name, exchange, sector, currency, created_at) VALUES (?, ?, ?, ?, ?, ?)
 """
 
 get_all_entries_of_ticker_from_validation_log_table_query: str = """
@@ -146,4 +159,17 @@ CREATE INDEX IF NOT EXISTS idx_price_data_ticker_timestamp ON price_data (ticker
 
 check_if_db_is_empty_query: str = """
 SELECT COUNT(1) FROM price_data
+"""
+
+drop_symbols_table_if_it_exists_query: str = """
+DROP TABLE IF EXISTS symbols
+"""
+
+execute_upsert_from_staging_to_main_in_price_data_table_query: str = """
+INSERT OR REPLACE INTO price_data (ticker, timestamp, open, close, high, low, volume) 
+SELECT ticker, timestamp, open, close, high, low, volume FROM temp_price_staging
+"""
+
+drop_staging_table_for_cleanup_query: str = """
+DROP TABLE temp_price_staging
 """
