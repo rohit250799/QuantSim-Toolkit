@@ -9,8 +9,12 @@ def run_validation(args: argparse.Namespace, fc: FlowController) -> None:
     """Runs validation check"""
     logging.debug('Entering the run validation function block')
     ticker = args.tName
-    file_path = args.mPath
+    start_date = args.startDate
+    end_date = args.endDate
 
-    fc.handle_validation_test(ticker, file_path)
-
-
+    if start_date >= end_date:
+        raise ValueError('Start date must be earlier than end date')
+    
+    result = fc.handle_validation_test(ticker, start_date, end_date)
+    logger.info('The result is: \n%s', result)
+    return

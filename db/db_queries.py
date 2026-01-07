@@ -11,13 +11,26 @@ CREATE TABLE IF NOT EXISTS price_data (
 )
 """
 
+temp_price_staging_table_creation_query: str = """
+CREATE TABLE IF NOT EXISTS temp_price_staging (
+    ticker TEXT NOT NULL,
+    timestamp INTEGER NOT NULL, 
+    open REAL,
+    close REAL, 
+    high REAL, 
+    low REAL,
+    volume INTEGER,
+    PRIMARY KEY (ticker, timestamp)
+)
+"""
+
 symbol_table_creation_query: str = """
 CREATE TABLE IF NOT EXISTS symbols (
     ticker TEXT NOT NULL PRIMARY KEY, 
     company_name TEXT,
     exchange TEXT,
     sector TEXT, 
-    currency TEXT 
+    currency TEXT, 
     created_at INTEGER NOT NULL
     )
 """
@@ -86,7 +99,7 @@ SELECT * FROM price_data where ticker = ? and timestamp between ? AND ? ORDER BY
 """
 
 insert_or_update_record_in_symbols_table_query: str = """
-INSERT INTO symbols VALUES (?, ?, ?, ?, ?, ?)
+INSERT INTO symbols (ticker, company_name, exchange, sector, currency, created_at) VALUES (?, ?, ?, ?, ?, ?)
 """
 
 get_all_entries_of_ticker_from_validation_log_table_query: str = """
@@ -104,4 +117,60 @@ DELETE FROM validation_log WHERE ticker = ? AND resolved = 0
 system_logs_insertion_query: str = """
 INSERT INTO system_logs (timestamp, level, source, message, ticker, api_status_code, response_time_ms) 
 VALUES (?, ?, ?, ?, ?, ?, ?) 
+"""
+
+analysis_results_table_creation_query: str = """
+CREATE TABLE IF NOT EXISTS analysis_results (
+    id INTEGER PRIMARY KEY,
+    timestamp INTEGER NOT NULL,
+    ticker TEXT NOT NULL,
+    benchmark TEXT NOT NULL,
+    start_date INT,
+    end_date INT,
+    alpha REAL,
+    beta REAL,
+    sharpe_ratio REAL, 
+    ticker_volatility REAL,
+    benchmark_volatility REAL,
+    correlation REAL,
+    data_quality_score REAL
+)
+"""
+
+insert_record_into_analysis_results_table: str = """
+INSERT INTO analysis_results (timestamp, ticker, benchmark, start_date, end_date, alpha, beta, sharpe_ratio, ticker_volatility, benchmark_volatility, correlation, data_quality_score)
+values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+"""
+
+rename_volatility_to_ticker_volatility_in_analysis_results_query: str = """
+ALTER TABLE analysis_results RENAME COLUMN volatility to ticker_volatility 
+"""
+
+add_new_column_benchmark_volatility_in_analysis_results_query: str = """
+ALTER TABLE analysis_results ADD COLUMN benchmark_volatility REAL
+"""
+
+check_if_ticker_exists_in_symbols_table: str = """
+SELECT 1 FROM symbols WHERE ticker = ? LIMIT 1
+"""
+
+index_creation_for_price_data_table: str = """
+CREATE INDEX IF NOT EXISTS idx_price_data_ticker_timestamp ON price_data (ticker, timestamp)
+"""
+
+check_if_db_is_empty_query: str = """
+SELECT COUNT(1) FROM price_data
+"""
+
+drop_analysis_results_table_if_it_exists_query: str = """
+DROP TABLE IF EXISTS analysis_results
+"""
+
+execute_upsert_from_staging_to_main_in_price_data_table_query: str = """
+INSERT OR REPLACE INTO price_data (ticker, timestamp, open, close, high, low, volume) 
+SELECT ticker, timestamp, open, close, high, low, volume FROM temp_price_staging
+"""
+
+drop_staging_table_for_cleanup_query: str = """
+DROP TABLE temp_price_staging
 """

@@ -1,68 +1,144 @@
 import logging
 import pandas as pd
+import numpy as np
+from pathlib import Path
+from typing import Dict, List
 
 from src.data_loader.data_loader import DataLoader
 from src.data_validator import DataValidator
+from db.database import get_prod_conn, get_db_path
 
 logger = logging.getLogger("cli")
 
+BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = BASE_DIR / "src" / "data"
 
-def load_benchmark_csv(file_path: str = 'src/data/') -> pd.DataFrame:
+def load_csv_to_dataframe(csv_file_name: str) -> pd.DataFrame:
     """
     Reads your local Nifty50 CSV, format it to match our internal price_data schema, and "hydrate" 
-    the database so the rest of the system treats it like any other ticker.
+    the database so the rest of the system treats it like any other ticker. Standardizes CSV data for the DB with strict type safety. 
+    Handles:
+    1. 'date' vs 'timestamp' column names.
+    2. Case sensitivity.
+    3. Conversion to Unix Epoch (seconds).
 
     Returns: A sanitized dataframe which will be seeded to the price_data table in the db
     """
+    file_path = DATA_DIR / csv_file_name
+    if not file_path.exists():
+        logger.error('File not found at: %s', file_path)
+        raise FileNotFoundError(f'Missing source CSV: {file_path}')
+    
+    # 1. Read only the header to detect column names
+    headers: List[str] = pd.read_csv(file_path, nrows=0).columns.tolist()
+    
+    # 2. Map required columns (case-insensitive)
+    mapping: Dict[str, str] = {}
+    required_targets = ['open', 'close', 'high', 'low', 'volume']
+
+    # Handle the Time column specifically
+    time_col = next((h for h in headers if h.lower() in ['date', 'timestamp', 'time', 'datetime']), None)
+    if not time_col:
+        logger.error(f"Headers found in {csv_file_name}: {headers}")
+        raise ValueError(f"No time-based column (date/timestamp) found in {csv_file_name}")
+    
+    mapping[time_col] = 'timestamp'
+
+    for req in required_targets:
+        match = next((h for h in headers if h.lower() == req), None)
+        if match:
+            mapping[match] = req
+        else: 
+            #If volume is missing, its defaulted to 0. But OHLC must always exist
+            logger.debug("Optional/Missing column '%s' in %s", req, csv_file_name)
+        
     try:
-        nifty_df = pd.read_csv('src/data/NIFTY50_id.csv', usecols=['date', 'open', 'high', 'low', 'close', 'volume'], parse_dates=['date'])[['date', 'open', 'high', 'low', 'close', 'volume']]
-        print(nifty_df)
-        logger.info('The head of the dataframe is: %s', nifty_df.head)
-        logger.info('\n The dataframe shape: %s', nifty_df.shape)
-        logger.info('\n The dataframe columns: %s', nifty_df.columns.to_list())
+        #Load and Parse
+        df = pd.read_csv(file_path, usecols=list(mapping.keys()))
+        df.rename(columns=mapping, inplace=True)
+        
+        # Convert to DatetimeIndex (DataLoader requirement)
+        # We handle conversion here so the Validator and Loader receive standard types
+        if csv_file_name == 'NIFTY50_id.csv':
+            df['timestamp'] = pd.to_datetime(df['timestamp'], dayfirst=True, utc=True, format='%d-%b-%Y', errors='coerce')
+        else:
+            df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True, errors='coerce')
+        df = df.dropna(subset=['timestamp']).copy()
 
-    except FileNotFoundError as e:
-        logger.debug('File not found in the given location. Error: %s', e)
-        raise
+        pre_drop_count = len(df)
+        df = df.dropna(subset=['timestamp']).copy()
+        post_drop_count = len(df)
 
-    except ValueError as e:
-        logger.debug('Error loading columns: %s. Check if the column names exist in the CSV file.', e)
+        if post_drop_count == 0 and pre_drop_count > 0:
+            # Diagnostic: show a sample of the raw data that failed to parse
+            sample_val = pd.read_csv(file_path, nrows=1)[time_col].iloc[0]
+            logger.error(f"Failed to parse dates in {csv_file_name}. Sample value: '{sample_val}'")
+            raise ValueError(f"Timestamp parsing failed for all rows in {csv_file_name}")
+        df.set_index('timestamp', inplace=True)
+
+        if 'volume' not in df.columns:
+            df['volume'] = 0
+
+        df = df.drop_duplicates().sort_index()
+        if df.empty:
+            raise ValueError(f"{csv_file_name} produced empty dataframe after parsing")
+
+        return df
+    
+    except Exception as e:
+        logger.error('Fail to parse %s due to error: %s', csv_file_name, e)
         raise
     
-    else: 
-        #CSV file found and its data has been loaded as a DataFrame
-        nifty_df['date'] = pd.to_datetime(nifty_df['date'], format='%d-%b-%Y')
-        nifty_df.set_index('date', inplace=True)
-        nifty_df.index.name = 'timestamp'
-        nifty_df.index = pd.to_datetime(nifty_df.index)
-        nifty_df.index = nifty_df.index.normalize()
-        nifty_df.index = nifty_df.index.strftime("%Y-%m-%d %H:%M:%S")
-        print(f'The parsed index dataframe with date is: \n{nifty_df}')
-
-        logger.info('The dataframe with updated index in load_benchmark is: \n%s', nifty_df)
-        data_loader = DataLoader()
-        data_validator = DataValidator(data_loader)
-
-        validated_nifty_df = data_validator.validate_and_clean(ticker='Nifty50', df=nifty_df)
-        logger.debug('The validated dataframe is: \n%s', validated_nifty_df)
-        print(f'The validated and clean dataframe is: \n{validated_nifty_df}')
-        return validated_nifty_df
-    
-def seed_database(ticker_name: str = 'NIFTY50_id.csv', csv_path: str = 'src/data') -> None:
+def seed_database(ticker_name: str, csv_filename: str) -> None:
     """
     Inserts the valid benchmark OHLCV data into the price_data table in db 
+
+    Orchestrates:
+    1. Loading CSV
+    2. Validating data integrity
+    3. Inserting into the price_data table in the db
     """
-    data_loader = DataLoader()
+    # Use the existing project DataLoader
+    db_path = get_db_path()
+    conn = get_prod_conn(db_path)
+    
     try:
-        clean_dataframe = load_benchmark_csv()
-    except (FileNotFoundError, ValueError) as e:
-        logger.info('Error occured: %s', e)
+        data_loader = DataLoader(conn)
+        data_validator = DataValidator(data_loader)
+        clean_ticker: str = ticker_name.replace('_id.csv', '').replace('.csv', '')
+        logger.info(f"Seeding {clean_ticker} from {csv_filename}...")
+        logger.info('Seed request: %s from %s', ticker_name, csv_filename)
+        data_loader.ensure_symbol_exists(ticker=clean_ticker)
+        df = load_csv_to_dataframe(csv_filename)
+        #df.index = pd.to_datetime(df.index).view('int64') // 10**9
+        clean_df, report = data_validator.validate_and_clean(clean_ticker, df, ['close'])
+        df_to_save = clean_df.copy()
+        df_to_save['timestamp'] = (df_to_save.index.astype('int64') // 10**9)
+        df_to_save['ticker'] = clean_ticker
+
+        data_loader.insert_daily_data(clean_ticker, clean_df) #ensuring the loader receives timestamp column
+
+        # VERIFICATION: Double check count immediately
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM price_data WHERE ticker = ?", (clean_ticker,))
+        count = cursor.fetchone()[0]
+        print(f"✅ Successfully seeded {clean_ticker}. DB count: {count}")
+
+        score = data_validator.calculate_quality_score(report)
+        logger.debug(
+            "Successfully seeded %s from %s with length: %d rows. (Quality Score: %.2f)", 
+            clean_ticker, csv_filename, len(df), score
+        )
+
+    except Exception as e:
+        logger.info("Failed to seed %s: %s", ticker_name, e)
         raise
-    else:
-        data_loader.insert_daily_data(ticker_name, clean_dataframe)
-        logger.info('Successfully inserted the Nifty dataframe into price data table in db')
 
-        return
+    finally:
+        conn.close()
 
+
+
+    
 # seed_database()
 # logger.info('Benchmark Data seeded sucessfully')

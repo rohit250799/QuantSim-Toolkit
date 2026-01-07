@@ -1,12 +1,17 @@
+SEEDER := scripts/seed_benchmark.py
+
 .PHONY: setup analyze test lint clean
 
 setup:
 	@echo ">>> Setting up environment"
 	pip install --upgrade uv
 	uv sync
+	@$(MAKE) hydrate
 
-# Usage:
-# make analyze ARGS="--ticker TCS --start 2024-01-01 --end 2024-12-31"
+hydrate:
+	@echo ">>> Hydrating database from golden CSV samples..."
+	uv run python3 -m scripts.hydrate_db
+	@echo ">>> Database hydration complete."
 
 analyze:
 	@echo ">>> Running QuantSim Toolkit"
@@ -25,17 +30,14 @@ lint:
 		--warn-redundant-casts
 
 clean:
-	rm -rf .pytest_cache .mypy_cache test-results
-
-# Usage:
-# make validate ARGS="-tname TCS"
+	@echo ">>> Removing temporary artifacts..."
+	find . -type d -name "__pycache__" -exec rm -rf {} +
+	rm -rf .pytest_cache .mypy_cache test-results *.db
+	@echo ">>> Done."
 
 validate:
 	@echo "Running data validation..."
 	uv run python3 -m src.main validate $(ARGS)
-
-# Usage:
-# make download ARGS="-symbol NMDC -sdate 2025-09-01 -edate 2025-09-23"
 
 download:
 	@echo "Running data download..."

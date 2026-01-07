@@ -1,14 +1,15 @@
+import pandas as pd
+import logging
+import requests
+from datetime import datetime, timedelta, timezone
+from typing import Dict, Any
+
 from src.data_loader.data_loader import DataLoader
 from src.circuit_breaker import CircuitBreaker
 from src.data_validator import DataValidator
 from src.custom_errors import CircuitOpenStateError, EmptyRecordReturnError
 from src.adapters.api_adapter import ApiAdapter
 from src.analysis_module import AnalysisModule
-
-import pandas as pd
-import logging
-import requests
-from datetime import datetime
 
 logger = logging.getLogger("flow")
 
@@ -19,68 +20,129 @@ class FlowController:
         self.data_validator = data_validator
         self.analysis_module = data_analyzer
 
-    def handle_validation_test(self, ticker: str, mock_file_path: str | None = None) -> None:
+    def handle_validation_test(self, ticker: str, start_date: str, end_date: str) -> str:
         """
-        Acts as a diagnostic tool - by loading data from a CSV file into pandas dataframe, validates and cleans the data,
-        gets validation log to 
+        Acts as a diagnostic tool - by loading data from a CSV file into pandas dataframe, validates and cleans data, logs output and prepares 
+        a Data Integrity repprt,
+        Displays the validation log in the validation.log file
+
+        Data integrity report calculation logic:
+        score = 1.0 - (report['gaps'] * 0.05) - (report['outliers'] * 0.1) - (report['stale'] * 0.02)
+
+        Returns: the score obtained from Data Integrity test report
         """
-        try:
-            df = pd.read_csv(f'{mock_file_path}/{ticker}_id.csv')
-            logger.info('CSV successfully loaded into dataframe from handle_validation_test function. ')
-        except FileNotFoundError:
-            logger.debug('File not found in your path. Check your path again!')
-            raise
-        else:
-            df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
-            df = df.set_index("timestamp").sort_index()
-            clean_and_valid_data = self.data_validator.validate_and_clean(ticker, df)
-            validation_logs = self.data_loader.get_validation_log(ticker)
+        format_str = '%Y-%m-%d'
+        start_ts = int(
+            datetime.strptime(start_date, format_str)
+            .replace(tzinfo=timezone.utc)
+            .timestamp()
+        )
 
-            logger.debug('The dataframe with clean and valid data is: \n%s', clean_and_valid_data)
-            logger.debug('The validation logs are: \n%s', validation_logs)
+        end_ts = int(
+            (
+                datetime.strptime(end_date, format_str)
+                + timedelta(days=1)
+            )
+            .replace(tzinfo=timezone.utc)
+            .timestamp()
+        )   
+        df = self.data_loader.get_historical_data(ticker, start_ts=start_ts, end_ts=end_ts)
+        if df.empty:
+            logger.info('Error: No data found in the DB for ticker: %s', ticker)
+            raise LookupError(
+                f"No price data found for {ticker} "
+                f"between {start_date} and {end_date}"
+            )
+        price_columns = ["close"]
+        clean_and_valid_data, validation_report = self.data_validator.validate_and_clean(ticker, df, price_columns=price_columns)
+        validation_score = self.data_validator.calculate_quality_score(validation_report)
+        validation_logs = self.data_loader.get_validation_log(ticker)
 
-        return 
-    
-    def dispatch_analysis_request(self, ticker: str, benchmark: str | None, start: str, end: str) -> None:
+        logger.debug('The dataframe with clean and valid data is: \n%s', clean_and_valid_data)
+        logger.debug('The validation logs are: \n%s', validation_logs)
+        logger.debug('The validation score is: %f', validation_score)
+
+        return f'Gaps: {validation_report['gap_number']} \n Outliers: {validation_report['outlier_number']} \n Stale data: {validation_report['stale_data_number']} \n Validation score: {validation_score}'
+
+
+    def dispatch_analysis_request(self, ticker: str, benchmark: str | None, start: str, end: str) -> Dict[str, Any]:
         """
         Serves the computation purpose for price data analysis. Fetches price data for both tickers -> if data exists ->
         enters into the analysis module for computation and returns results to the terminal. In simpler terms, its job is
         to collect data from the db, ensure it is mathematically valid for comparison and feed it to the calculator
         """
-        start_unix_epoch = int(pd.Timestamp(start).timestamp())
-        end_unix_epoch = int(pd.Timestamp(end).timestamp())
-        ticker_dataframe = self.data_loader.get_historical_data(ticker=ticker, start_ts=start_unix_epoch, end_ts=end_unix_epoch).sort_index().dropna()
-        if ticker_dataframe.empty:
-            logger.info('Data missing for either ticker: %s or benchmark: %s. Please run download first. Returning None', ticker, benchmark)
-            return
-        
-        if not benchmark: 
-            benchmark_dataframe = self.data_loader.get_historical_data('NIFTY50_id.csv', start_unix_epoch, end_unix_epoch)
-            logger.debug('Default Benchmark dataframe found in the db: \n%s ', benchmark_dataframe)
-            logger.debug('Benchmark dataframe fetched successfully')
-                 
-        else:
-            try:
-                benchmark_dataframe = self.data_loader.get_historical_data(benchmark, start_unix_epoch, end_unix_epoch).dropna()
-            except EmptyRecordReturnError as e:
-                logger.debug('Benchmark Record not found in the db due to error: %s. Using Nifty50 as default', e)
-                benchmark_dataframe = self.data_loader.get_historical_data(ticker='NIFTY50_id.csv', start_ts=start_unix_epoch, end_ts=end_unix_epoch)
-            else:
-                logger.info('The non-default benchmark dataframe fetched is: \n%s', benchmark_dataframe)            
+        # start_unix_epoch = int(pd.Timestamp(start).timestamp())
+        # end_unix_epoch = int(pd.Timestamp(end).timestamp())
+        current_timestamp = datetime.now()
+        current_unix_epoch_timestamp = int(current_timestamp.timestamp())
+        start_unix_epoch = int(pd.Timestamp(start, tz="UTC").timestamp())
+        end_unix_epoch = int((pd.Timestamp(end, tz="UTC") + pd.Timedelta(days=1)).timestamp())
+        ticker_dataframe = self.data_loader.get_historical_data(ticker=ticker, start_ts=start_unix_epoch, end_ts=end_unix_epoch)
 
-        ticker_dataframe_close_column = ticker_dataframe['close']
-        benchmark_dataframe_close_column = benchmark_dataframe['close']
-
-        concatenated_closing_prices_pd_df = pd.concat([ticker_dataframe_close_column, benchmark_dataframe_close_column], axis=1, join='inner').dropna()
-        concatenated_closing_prices_pd_df.columns = ['ticker_close', 'benchmark_close']
-        if len(concatenated_closing_prices_pd_df) < 2:
-            logger.debug('The resultant concatenated dataframe has < 2 rows, so returns cannot be calculated. Returning None')
-            return
-        logger.debug('The concatenated closing prices dataframe looks like: \n%s', concatenated_closing_prices_pd_df)
+        if ticker_dataframe.empty or ticker_dataframe is None:
+            logger.info('Data missing for ticker: %s. Please run download first. Raising Lookup error', ticker)
+            raise LookupError('No price data found for ticker: %s', ticker)
         
-        self.analysis_module.compute_metrics(concatenated_closing_prices_pd_df)
-        logger.info('The datatype of the index in concatenated df is: %s', type(concatenated_closing_prices_pd_df.index))
-        return
+        if not benchmark:
+            benchmark = 'Nifty50'
+        
+        benchmark = benchmark.replace('_id.csv', '').replace('.csv', '').upper() 
+
+        benchmark_dataframe = self.data_loader.get_historical_data(benchmark, start_unix_epoch, end_unix_epoch)
+        if benchmark_dataframe.empty or benchmark_dataframe is None:
+            logger.info('Data missing for benchmark: %s. Raising Lookup error', benchmark)
+            raise LookupError('No price data found for benchmark: %s', benchmark)
+
+
+        ticker_dataframe = ticker_dataframe.copy()
+        benchmark_dataframe = benchmark_dataframe.copy()
+
+        ticker_dataframe.index = pd.to_datetime(ticker_dataframe.index, unit="s", utc=True)
+        benchmark_dataframe.index = pd.to_datetime(benchmark_dataframe.index, unit="s", utc=True)
+
+        ticker_close = ticker_dataframe["close"]
+        benchmark_close = benchmark_dataframe["close"]
+
+        common_index = ticker_close.index.union(benchmark_close.index)
+
+        concatenated_df = pd.DataFrame(
+        {
+            "ticker_close": ticker_close.reindex(common_index).ffill(),
+            "benchmark_close": benchmark_close.reindex(common_index).ffill(),
+        }).dropna()
+
+        if len(concatenated_df) < 2:
+            raise ValueError("Insufficient aligned data to compute returns")
+
+        price_columns = ["ticker_close", "benchmark_close"]
+        validated_df, report = self.data_validator.validate_and_clean(
+            ticker=ticker,
+            df=concatenated_df,
+            price_columns=price_columns,
+        )
+
+        validation_score = self.data_validator.calculate_quality_score(report)
+
+        metrics = self.analysis_module.compute_metrics(validated_df)
+
+        results_payload = {
+            'timestamp': current_unix_epoch_timestamp,
+            'ticker': ticker,
+            'benchmark': benchmark,
+            'start_date': start_unix_epoch,
+            'end_date': end_unix_epoch,
+            'log_returns_alpha': metrics['log_returns_alpha'],
+            'beta': metrics['beta'],
+            'sharpe_ratio': metrics['sharpe_ratio'],
+            'ticker_volatility': metrics['ticker_annualized_volatility'],
+            'benchmark_volatility': metrics['benchmark_annualized_volatility'],
+            'correlation': metrics['correlation_coefficient'],
+            'data_quality_score': validation_score
+        }
+        
+        logger.debug('The results payload is: \n%s. Saving it to analysis_results table', results_payload)
+        self.data_loader.save_analysis_results(results_payload)
+        return results_payload
 
     def handle_download_request(self, ticker: str, start_date: str, end_date: str) -> None:
         """
@@ -120,9 +182,10 @@ class FlowController:
                         ticker, current_timestamp=current_timestamp
                     )
                     return
-                clean_data = self.data_validator.validate_and_clean(ticker, df=api_call_data)
+                price_columns = ['close']
+                clean_dataframe, _ = self.data_validator.validate_and_clean(ticker, df=api_call_data, price_columns=price_columns)
                 logger.debug('The data as param in validate and clean, as dataframe is: \n%s', api_call_data)
-                self.data_loader.insert_daily_data(ticker=ticker, df=clean_data)
+                self.data_loader.insert_daily_data(ticker=ticker, df=clean_dataframe)
         return
 
 

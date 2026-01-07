@@ -55,6 +55,7 @@ jobs:
           echo "=== Type Checking ==="
           uv run mypy . \
             --strict \
+            --explicit-package-bases \
             --warn-unused-configs \
             --warn-redundant-casts
 
