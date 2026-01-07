@@ -130,7 +130,8 @@ CREATE TABLE IF NOT EXISTS analysis_results (
     alpha REAL,
     beta REAL,
     sharpe_ratio REAL, 
-    volatility REAL,
+    ticker_volatility REAL,
+    benchmark_volatility REAL,
     correlation REAL,
     data_quality_score REAL
 )
@@ -161,8 +162,8 @@ check_if_db_is_empty_query: str = """
 SELECT COUNT(1) FROM price_data
 """
 
-drop_symbols_table_if_it_exists_query: str = """
-DROP TABLE IF EXISTS symbols
+drop_analysis_results_table_if_it_exists_query: str = """
+DROP TABLE IF EXISTS analysis_results
 """
 
 execute_upsert_from_staging_to_main_in_price_data_table_query: str = """
