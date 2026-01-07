@@ -170,7 +170,7 @@ def tcs_test_data(fresh_db_cursor: sqlite3.Cursor) -> pd.DataFrame:
     query = """
     SELECT timestamp, close 
     FROM price_data 
-    WHERE symbols_id = (SELECT id FROM symbols WHERE ticker = 'TCS')
+    WHERE ticker = 'TCS'
     ORDER BY timestamp
     """
     # Use the connection object from the cursor's context

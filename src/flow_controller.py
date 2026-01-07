@@ -32,10 +32,6 @@ class FlowController:
         Returns: the score obtained from Data Integrity test report
         """
         format_str = '%Y-%m-%d'
-        # start_date_datetime_object = datetime.strptime(start_date, format_str)
-        # end_date_datetime_object = datetime.strptime(end_date, format_str)
-        # unix_epoch_start_ts = int(start_date_datetime_object.timestamp())
-        # unix_epoch_end_ts = int(end_date_datetime_object.timestamp())
         start_ts = int(
             datetime.strptime(start_date, format_str)
             .replace(tzinfo=timezone.utc)
@@ -89,59 +85,24 @@ class FlowController:
         
         if not benchmark:
             benchmark = 'Nifty50_id.csv' 
-                 
-        # else:
-        #     try:
-        #         benchmark_dataframe = self.data_loader.get_historical_data(benchmark, start_unix_epoch, end_unix_epoch).dropna()
-        #     except EmptyRecordReturnError as e:
-        #         logger.debug('Benchmark Record not found in the db due to error: %s. Using Nifty50 as default', e)
-        #         benchmark = 'Nifty50'
-        #         benchmark_dataframe = self.data_loader.get_historical_data(ticker='NIFTY50_id.csv', start_ts=start_unix_epoch, end_ts=end_unix_epoch)
-        #     else:
-        #         logger.info('The non-default benchmark dataframe fetched is: \n%s', benchmark_dataframe)            
 
-        # ticker_dataframe_close_column = ticker_dataframe['close']
-        # benchmark_dataframe_close_column = benchmark_dataframe['close']
-
-        # concatenated_closing_prices_pd_df = pd.concat([ticker_dataframe_close_column, benchmark_dataframe_close_column], axis=1, join='inner').dropna()
-        # concatenated_closing_prices_pd_df.columns = ['ticker_close', 'benchmark_close']
-        # if len(concatenated_closing_prices_pd_df) < 2:
-        #     logger.debug('The resultant concatenated dataframe has < 2 rows, so returns cannot be calculated. Returning None')
-        #     return
-        # logger.debug('The concatenated closing prices dataframe looks like: \n%s', concatenated_closing_prices_pd_df)
-        
-        # price_columns=["ticker_close", "benchmark_close"]
-        # validated_df, report = self.data_validator.validate_and_clean(ticker, concatenated_closing_prices_pd_df, price_columns=price_columns)
-        # validation_score = self.data_validator.calculate_quality_score(report)
-        # compute_metrics = self.analysis_module.compute_metrics(validated_df)
         benchmark_dataframe = self.data_loader.get_historical_data(benchmark, start_unix_epoch, end_unix_epoch)
         if benchmark_dataframe.empty or benchmark_dataframe is None:
             logger.info('Data missing for benchmark: %s. Raising Lookup error', benchmark)
             raise LookupError('No price data found for benchmark: %s', benchmark)
 
-        # ------------------------------------------------------------------
-        # 3. Convert DB timestamps → UTC DatetimeIndex (ONCE)
-        # ------------------------------------------------------------------
+
         ticker_dataframe = ticker_dataframe.copy()
         benchmark_dataframe = benchmark_dataframe.copy()
 
         ticker_dataframe.index = pd.to_datetime(ticker_dataframe.index, unit="s", utc=True)
         benchmark_dataframe.index = pd.to_datetime(benchmark_dataframe.index, unit="s", utc=True)
 
-        # ------------------------------------------------------------------
-        # 4. Extract CLOSE prices only (vectorized, cache-friendly)
-        # ------------------------------------------------------------------
         ticker_close = ticker_dataframe["close"]
         benchmark_close = benchmark_dataframe["close"]
 
-        # ------------------------------------------------------------------
-        # 5. Build a COMMON TIME GRID (lossless union)
-        # ------------------------------------------------------------------
         common_index = ticker_close.index.union(benchmark_close.index)
 
-        # ------------------------------------------------------------------
-        # 6. Reindex + forward-fill (industry standard for close prices)
-        # ------------------------------------------------------------------
         concatenated_df = pd.DataFrame(
         {
             "ticker_close": ticker_close.reindex(common_index).ffill(),
@@ -151,9 +112,6 @@ class FlowController:
         if len(concatenated_df) < 2:
             raise ValueError("Insufficient aligned data to compute returns")
 
-        # ------------------------------------------------------------------
-        # 7. Validate (NO DB, NO LOGIC LEAK INTO ANALYSIS)
-        # ------------------------------------------------------------------
         price_columns = ["ticker_close", "benchmark_close"]
         validated_df, report = self.data_validator.validate_and_clean(
             ticker=ticker,
@@ -162,15 +120,8 @@ class FlowController:
         )
 
         validation_score = self.data_validator.calculate_quality_score(report)
-         # ------------------------------------------------------------------
-        # 8. Pure math computation (final step)
-        # ------------------------------------------------------------------
+
         metrics = self.analysis_module.compute_metrics(validated_df)
-
-        # ------------------------------------------------------------------
-        # 9. Return structured result (terminal-safe)
-        # ------------------------------------------------------------------
-
 
         results_payload = {
             'timestamp': current_unix_epoch_timestamp,
