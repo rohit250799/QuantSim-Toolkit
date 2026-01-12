@@ -20,7 +20,7 @@ analyze:
 test:
 	@echo ">>> Running tests"
 	mkdir -p test-results
-	uv run pytest tests/ -v 
+	uv run pytest tests/ -v
 
 lint:
 	@echo ">>> Running type checks"
@@ -50,3 +50,22 @@ help:
 securityCheck:
 	@echo "Running security checks..."
 	uv run bandit -c .bandit.yaml -r . -lll
+
+cleanCppFailedBuilds:
+	@echo "Running command to clean previously failed C++ builds..."
+	rm -rf cpp/build
+	rm -rf .venv/.cache
+	rm -rf .venv/lib/python3.12/site-packages/quantsim_toolkit*
+	rm -rf .venv/lib/python3.12/site-packages/quantsim_toolkit-*.dist-info
+	@echo "Failed build has been successfully cleared"
+
+rebuildCleanCpp:
+	@echo "Rebuilding C++ cleanly from start..."
+	make cleanCppFailedBuilds
+	mkdir /media/coding/Quant_projects/quantsim_toolkit/cpp/build
+	uv pip install .
+	@echo "Rebuild of C++ library complete..."
+	@echo "Running the stub generator..."
+	mkdir -p stubs
+	pybind11-stubgen quantsim_core_engine --output-dir stubs
+	@echo "Stubs have been generated..."
