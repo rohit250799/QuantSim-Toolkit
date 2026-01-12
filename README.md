@@ -1,6 +1,7 @@
 # QuantSim-Toolkit
 
-**A Python-based quantitative simulation and analysis toolkit integrating probability simulations, stock return analysis, portfolio risk calculations, and Monte Carlo methods. Designed to demonstrate applied mathematics, numerical simulations, and CLI-based financial utilities.**
+**A Python-based quantitative simulation and analysis toolkit integrating probability simulations, stock return analysis, portfolio risk calculations, and Monte Carlo methods. Designed 
+to demonstrate applied mathematics, numerical simulations, and CLI-based financial utilities.**
 
 ---
 
@@ -57,7 +58,7 @@ The toolkit is executed via a CLI interface.
 ### Example command to run in codespaces (maintain the order of running)
 
 ### Activate virtual environment in Github codespaces (if not already activated):
-source .venv/bin/activate - run from the terminal
+source .venv/bin/activate - run from the codespaces terminal
 
 ### To seek help:
 make help
@@ -65,7 +66,7 @@ make help
 ### To run unit tests:
 make test
 
-### To clean the db (remove temporary artefacta)
+### To clean the db (remove temporary artefacts)
 make clean
 
 ### To setup everything
@@ -80,47 +81,54 @@ make lint
 ### Perform analysis
 make analyze ARGS="--ticker_element RELIANCE --start_date 2025-09-12 --end_date 2025-09-22"
 
-### To download data
-make download ARGS="--stockSymbol SBI --startdate 2025-08-16 --enddate 2025-09-23" 
+### To download data (may not work in workspaces, need your own API key to try out)
+make download ARGS="--stockSymbol SBIN --startdate 2025-08-16 --enddate 2025-09-23" 
 
 ### To run security check with Bandit
 make securityCheck
 
 ### If needed, you can perform hydration to insert seed data in your db, separately from the setup command. Use
 make hydrate
+
+### To build or rebuild C++ for Market Microstructure Simulation, use command
+make rebuildCleanCpp
 ---
 
 Trying out the features(all commands should be entered in the terminal from the root directory):
 
-**Validation and Analysis commands will no longer read data from CSV -> convert it to a dataframe -> use it. Instead, data will be loaded direcyly from the db tables**
+**Validation and Analysis commands will no longer read data from CSV -> convert it to a dataframe -> use it. Instead, data will be loaded directly from the db tables**
 
 Activate the virtual environment first by using **source .venv/bin/activate** from the root directory
 
-1. To download data about a particular stock between a specific period: you can use the command **python3 -m src.main download -symbol 'NMDC' -sdate '2025-09-01' -edate '2025-09-23'**. Symbol refers to the name of the stock/ticker, sdate and edate are starting and ending dates respectively.  
+1. To download data about a particular stock between a specific period: you can use the command **python3 -m src.main download -symbol 'NMDC' -sdate '2025-09-01' -edate '2025-09-23'**. Symbol 
+refers to the name of the stock/ticker, sdate and edate are starting and ending dates respectively.  
 
 ![Download stock data](screenshots/download_stock_data.png)
 
 In this case, there are some things that you need to know:
 
     a) Downloaded stock data will be in the CSV format
-    b) To download the stock data, I have used Alpha Vantage API for this project, from where you can download data for free(to a certain limit). To get started with this, every user needs to have a API key from Alpha Vantage (which is free). You can visit this link and generate your own API key by [clicking here](https://www.alphavantage.co/support/#api-key)
+    b) To download the stock data, I have used Alpha Vantage API for this project, from where you can download data for free(to a certain limit). To get started with this, every user 
+    needs to have a API key from Alpha Vantage (which is free). You can visit this link and generate your own API key by [clicking here](https://www.alphavantage.co/support/#api-key)
     c) Once you get an API key, you have to store it in a .env file inside the modules/ directory. Store your API key there in the format: export API_KEY='A^5435NDD'
     d) In the above point, maintaining the format is very important in the .env file and there should be no space on either side of '='
 
-The downloaded stock data will be **stored in the price_data table in db, and will be loaded as a Pandas DataFrame for easier analysis**. There will ne multiple validation checks performed on the downloaded
+The downloaded stock data will be **stored in the price_data table in db, and will be loaded as a Pandas DataFrame for easier analysis**. There will be multiple validation checks performed on the downloaded
 data like **checking for gaps**, **checking outliers** and **checking for stale data** and for those records that did not pass the validation checks, logs will be created in the logs directory.
 
 ![Display validated download data](screenshots/download_stock_data_with_dataframe_conversion_and_filtering.png)
 
-2. Using generators with chunksize to read large downloaded CSV file data and calculating the daily stock returns on each chunk. You can use the analyzer by running the command **python3 -m src.main analyze -ticker 'TCS' -start '2025-09-01' -end '2025-09-21'** to calculate and display the key performance indicators. Replace the ticker 'TCS' with any other stock symbol you like which is traded in the appropriate market or change the start and end date, and the analysis results will keep changing accordingly.   
+2. Using generators with chunksize to read large downloaded CSV file data and calculating the daily stock returns on each chunk. You can use the analyzer by running the command:
+ **python3 -m src.main analyze -ticker 'TCS' -start '2025-09-01' -end '2025-09-21'** to calculate and display the key performance indicators. Replace the ticker 'TCS' with any other stock 
+ symbol you like which is traded in the appropriate market or change the start and end date, and the analysis results will keep changing accordingly.   
 
     Now, the key performance indicators of a particular stock are also displayed after the analysis. Using this feature, **the user can calculate his stock's performance against a benchmark**(NIFTY 50) by default.
-    For now, the analysis command returns: **Daily Log returns, Cummulative returns, Annualized Volatility, Beta, Log Returns Alpha, Sharpe Ratio and Correlation Coefficient**. (as can be seen from the below image) 
+    For now, the analysis command returns: **Daily Log returns, Cumulative returns, Annualized Volatility, Beta, Log Returns Alpha, Sharpe Ratio and Correlation Coefficient**. (as can be seen from the below image) 
 
 ![Display key performance indicators](screenshots/analyze_stock.png)
 
     Note: 
-    The Default Benchmark used in this project is NIFTY50 Index (Indian Market - NSE). If you want some other benchmark to be used, then you can specify the benchmark using the -benchmark and -bexchamge arguments.
+    The Default Benchmark used in this project is NIFTY50 Index (Indian Market - NSE). If you want some other benchmark to be used, then you can specify the benchmark using the -benchmark and -bexchange arguments.
     Be careful, that the benchmark used should match its appropriate exchange (for example - you can't use NIFTY50 as a benchmark with the exchange provided as NASDAQ).
 
     Problem with Alpha Vantage API:
@@ -143,18 +151,22 @@ have downloaded. The validation will be performed and the logs will be displayed
 
 ![Validate data and log results](screenshots/run_validation_and_log_results.png)
 
-Now, on performing validation - a validation score will also be displayed (range from 0 to 1), along with the number of gaps, outliers and stale data records. Every anomaly from gaps to outliers and stale data record will
-carry their own weightage during calculation of validation (data integrity) score and will be deducted accordingly.
+Now, on performing validation - a validation score will also be displayed (range from 0 to 1), along with the number of gaps, outliers and stale data records. Every anomaly from gaps to outliers and stale data 
+record will carry their own weight-age during calculation of validation (data integrity) score and will be deducted accordingly.
 
 ![Validation score](screenshots/validation_score.png)
 
-5. Now, it comes included with a **production grade error handling system. A Circuit breaker mechanism** is implemented which will **keep transitioning between states based on the API call results**. API call failures will **implement retry logic with exponential backoff and structured logging** - to help in easier debugging.
+5. Now, it comes included with a **production grade error handling system. A Circuit breaker mechanism** is implemented which will **keep transitioning between states based on the API call results**. API call failures 
+will **implement retry logic with exponential backoff and structured logging** - to help in easier debugging.
 
-**API calls will only be allowed if the current state of the circuit breaker is Closed or Half-Open**. The failure count as a result of unsuccessful API calls will be tracked for transparent logging into the db. For this, 3 new tables have been created in the database for **Alerts, Error Metrics and API Call Metrics**.
+**API calls will only be allowed if the current state of the circuit breaker is Closed or Half-Open**. The failure count as a result of unsuccessful API calls will be tracked for transparent logging into the db. For 
+this, 3 new tables have been created in the database for **Alerts, Error Metrics and API Call Metrics**.
 
 ![Logs into Circuit Breaker States table](screenshots/logging_into_circuit_breaker_states_table.png)
 
-**3 consecutive failures within a 5 minute window will now result in the State Transition of the Circuit Breaker from Closed to Open with a cooldown end time**. When the cooldown end time is over, state will be updated to **Half-Open** and there will be a single API call allowed, which if successful, will again revert back the State of the Circuit Breaker to **Closed**. If unsuccessful, the state will be updated to **Open** again. 
+**3 consecutive failures within a 5 minute window will now result in the State Transition of the Circuit Breaker from Closed to Open with a cooldown end time**. When the cooldown end time is over, state will 
+be updated to **Half-Open** and there will be a single API call allowed, which if successful, will again revert back the State of the Circuit Breaker to **Closed**. If unsuccessful, the state will be updated 
+to **Open** again. 
 
 ![Logs into API metrics table](screenshots/logging_into_api_metrics_table.png)
 
@@ -170,13 +182,22 @@ The logs will be stored in **logs/errors.log**
 
 ![Running security checks with Bandit](screenshots/run_security_checks_with_bandit.png)
 
-8. Enter the command: **python3 main.py simulation -tries 100** to test the probability of each side of the dice after 100 rolls. Replace 100 with any other integer number to change the number of rolls 
+8. Building a **Market Microstructure Simulator by implementing a Limit Order Book with C++**. To integrate C++ code with the existing Python codebase, I have used **Pybind11 Library** to create bindings
+building the Python and C++ code. All the C++ code will be stored in the cpp/ directory with pybind_module.cpp and CMakeLists.txt files. For now, creating the OrderBookRecord, AskPrices and BidPrices list.
 
-9. Enter command: **python3 main.py simulation -type coin -tries 100** to test the probability of each side of the coin after 100 tosses. Replace 100 with any other integer number to change the number of tosses 
+![Rebuilding Clean C++](screenshots/rebuild_clean_cpp.png)
+
+By using Pybind11 to create bindings, it carries a problem for mypy strict checking - Mypy (a static analyzer) cannot "look inside" a compiled C++ binary. To a static analyzer, your .so or .pyd file 
+is a black box. To solve this problem, using **pybind11-stubgen** library to auto-generate stubs (.pyi) file for Python modules in the root directory which will then be referenced by mypy for type checking.
+All of this workflow is integrated inside the   **make rebuildCleanCpp** command in the Makefile.
+
+9. Enter the command: **python3 main.py simulation -tries 100** to test the probability of each side of the dice after 100 rolls. Replace 100 with any other integer number to change the number of rolls 
+
+10. Enter command: **python3 main.py simulation -type coin -tries 100** to test the probability of each side of the coin after 100 tosses. Replace 100 with any other integer number to change the number of tosses 
 
 ![Single coin or dice after n tries](screenshots/single_coin_or_dice.png)
 
-10. To try simulation with multiple dice (< 10), you can use this command: **python3 main.py simulation -multi -dice 3 -sides 6 -tries 10**. You can change the number of dice, sides and tries
+11. To try simulation with multiple dice (< 10), you can use this command: **python3 main.py simulation -multi -dice 3 -sides 6 -tries 10**. You can change the number of dice, sides and tries
 
 ![Multiple dice after simulation](screenshots/multi_dice_simulation.png)
 
@@ -184,29 +205,26 @@ The logs will be stored in **logs/errors.log**
 
 ## Features (work in progress)
 
-### 1. Probability Simulator
-- Simulates dice rolls, coin tosses, and random events
-- Estimates probabilities using Monte Carlo simulations
-- Demonstrates applied probability concepts
 
-### 1. Stock Return Analyzer - done
-- Reads historical stock price CSVs
-- Computes daily log returns, cummulative returns, annualized log returns alpha, beta etc
-- Plots return distributions and moving averages for visualization
+### 1. Market Microstructure mechanism with C++
+- Limit Order Book (LOB) implementation with Bid and Ask Lists
+- Matching engine 
+- Measuring slippage
+- Simulating Order Flow
+- Visualize: Create a simple chart that shows the "Depth"
 
-### 2. Portfolio Risk Calculator
-- Computes portfolio variance using covariance matrices
-- Estimates volatility and risk metrics
-- Prepares for portfolio optimization tasks
-
-### 3. Monte Carlo Stock Price Simulator
+### 2. Monte Carlo Stock Price Simulator
 - Simulates stock price paths using Geometric Brownian Motion
 - Calculates expected payoffs for hypothetical trading scenarios
 - Demonstrates applied Monte Carlo simulations
 
-### 4. CLI Interface - done
+### 3. CLI Interface - done
 - Unified command-line interface using `argparse`
 - Subcommands: `simulate`, `analyze`, `download`, `validate`
 - Modular and easy-to-use workflow
 
+### 4. Probability Simulator
+- Simulates dice rolls, coin tosses, and random events
+- Estimates probabilities using Monte Carlo simulations
+- Demonstrates applied probability concepts
 ---
