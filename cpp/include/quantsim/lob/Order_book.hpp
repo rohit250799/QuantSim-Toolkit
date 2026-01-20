@@ -1,44 +1,50 @@
+#include <pybind11/pybind11.h>
+
+namespace py = pybind11;
+
 #pragma once
 
 #include <string>
-#include <vector>
 
-enum class OrderBookRecordType {
+enum class OrderSide {
     BID,
     ASK
 };
 
-class OrderBookRecord {
+enum class OrderState {
+    NEW,
+    PARTIALLY_FILLED,
+    FILLED,
+    CANCELLED
+};
+
+class Order {
     public:
-        int id;
+        void displayContents() const;
+        bool checkValidity(Order order);
+        
+    private:
+        int orderId;
+        std::string ticker;
         long long time;
         int volume;
         float price;
-        OrderBookRecordType recordType;
+        OrderSide side;
+        std::string client;
+        int originalQuantity;
+        int remainingQuantity;
+        OrderState state;
         
-        OrderBookRecord(
-            int id, 
+        Order(
+            int orderId,
+            std::string ticker, 
             long long time, 
             int volume, 
             float price, 
-            enum OrderBookRecordType recordType
+            enum OrderSide side,
+            std::string client,
+            int originalQuantity,
+            int remainingQuantity,
+            enum OrderState state
         );
-        
-        void displayContents() const;
-};
-
-class AskPrices {
-    public:
-        OrderBookRecordType type = OrderBookRecordType::ASK;
-        std::vector<OrderBookRecord> askPricesRecords;
-        AskPrices(std::string s);
-        int size();
-};
-
-class BidPrices {
-    public:
-        enum OrderBookRecordType type = OrderBookRecordType::BID;
-        std::vector<OrderBookRecord> bidPricesRecords;
-        BidPrices(std::string s);
-        int size();
 };
