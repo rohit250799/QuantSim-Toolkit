@@ -1,11 +1,20 @@
-from quantsim_core_engine import OrderBookRecordType, OrderBookRecord
+from quantsim_core_engine import Order, OrderSide, OrderState, OrderValidationError
 
-r = OrderBookRecord(
+r = Order(
     1,
+    'INFY',
     1223,
-    100,
+    134,
     3431.44,
-    OrderBookRecordType.BID
+    OrderSide.BID,
+    "Test Client 1",
+    29,
+    10,
+    OrderState.NEW
 )
 
-r.displayContents()
+err = r.validate()
+if err != OrderValidationError.NONE:
+    raise ValueError(f'Invalid error: {err}')
+
+print("No validation errors have been encountered!")
