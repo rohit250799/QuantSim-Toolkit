@@ -14,6 +14,8 @@ and finance by allowing users to:
 - Analyze stock returns and risk
 - Perform Monte Carlo simulations for stock price paths
 - Interact with a unified CLI interface
+- Simulate a Market Microstructure mechanism by implementing a Limit Order Book
+- Predict Advanced risk and Regime detection
 
 This project focuses on **Quant Development**, emphasizing **code structure, applied math, and system-level thinking**
 
@@ -217,6 +219,7 @@ All of this workflow is integrated inside the   **make rebuildCleanCpp** command
 - Simulates stock price paths using Geometric Brownian Motion
 - Calculates expected payoffs for hypothetical trading scenarios
 - Demonstrates applied Monte Carlo simulations
+- Transform the current Monte Carlo simulator, identify the slowest parts, and move them to the C++ Quantsim_core_engine.
 
 ### 3. CLI Interface - done
 - Unified command-line interface using `argparse`
@@ -227,4 +230,9 @@ All of this workflow is integrated inside the   **make rebuildCleanCpp** command
 - Simulates dice rolls, coin tosses, and random events
 - Estimates probabilities using Monte Carlo simulations
 - Demonstrates applied probability concepts
+
+### 5. Advanced Risk and Regine detection
+- Implement Hidden Markov Models(HMM) for regime detection or Expected Shortfall (CVaR) with Stress Testing
+- Add a "Stress Test" module where users can simulate specific historical shocks (e.g., 2008 Financial Crisis, 2020 Covid Crash) 
+and see how their portfolio risk metrics (VaR/ES) shift
 ---
