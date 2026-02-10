@@ -1,7 +1,8 @@
-#include "include/quantsim/lob/Order_book.hpp"
 #include <pybind11/pybind11.h>
 #include <ctime>
 #include <quantsim/lob/Order_book.hpp>
+#include "include/quantsim/lob/Order_book.hpp"
+
 //#include "include/quantsim/lob/Order_book.hpp"
 
 namespace py = pybind11;

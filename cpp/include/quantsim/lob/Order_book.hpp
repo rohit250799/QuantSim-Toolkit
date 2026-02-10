@@ -28,6 +28,8 @@ enum class OrderValidationError : uint8_t {
     TIME_STAMP_IN_FUTURE
 };
 
+// There is a separate limit order book for every single symbol traded in the market
+
 class Order {
     public:
         Order() = default;
