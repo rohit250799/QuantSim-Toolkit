@@ -7,6 +7,7 @@ find_package(pybind11 CONFIG REQUIRED)
 pybind11_add_module(quantsim_core_engine 
     pybind_module.cpp
     src/lob/order_book.cpp
+    src/lob/Price_level.cpp
 )
 
 target_include_directories(quantsim_core_engine
