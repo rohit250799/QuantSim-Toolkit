@@ -1,6 +1,7 @@
 #include <pybind11/pybind11.h>
 #include <ctime>
 #include <quantsim/lob/Order_book.hpp>
+#include <quantsim/lob/Price_level.hpp>
 #include "include/quantsim/lob/Order_book.hpp"
 
 //#include "include/quantsim/lob/Order_book.hpp"
@@ -36,5 +37,9 @@ PYBIND11_MODULE(quantsim_core_engine, module_handle, py::mod_gil_not_used()) {
         .def(py::init<int, std::string, long long, int, float, OrderSide, std::string, int, int, OrderState>())
         .def("validate", &Order::validate)
         .def("is_valid", &Order::isValid);
+    
+    py::class_<PriceLevel>(module_handle, "PriceLevel")
+        .def(py::init<float>())
+        .def("addOrder", &PriceLevel::addOrder);
 }
 
