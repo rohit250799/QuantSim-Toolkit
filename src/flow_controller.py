@@ -7,7 +7,7 @@ from typing import Dict, Any
 from src.data_loader.data_loader import DataLoader
 from src.circuit_breaker import CircuitBreaker
 from src.data_validator import DataValidator
-from src.custom_errors import CircuitOpenStateError, EmptyRecordReturnError
+from src.custom_errors import CircuitOpenStateError
 from src.adapters.api_adapter import ApiAdapter
 from src.analysis_module import AnalysisModule
 

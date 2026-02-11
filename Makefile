@@ -62,7 +62,7 @@ cleanCppFailedBuilds:
 rebuildCleanCpp:
 	@echo "Rebuilding C++ cleanly from start..."
 	make cleanCppFailedBuilds
-	mkdir /media/coding/Quant_projects/quantsim_toolkit/cpp/build
+	mkdir cpp/build
 	uv pip install .
 	@echo "Rebuild of C++ library complete..."
 	@echo "Running the stub generator..."
