@@ -48,6 +48,7 @@ class Order {
         void displayContents() const;
         OrderValidationError validate() const noexcept;
         bool isValid() const noexcept;
+        int getOriginalQuantity() const;
         
     private:
         int orderId = 1;
