@@ -4,7 +4,7 @@
 
 namespace py = pybind11;
 
-pragma once
+#pragma once
 
 class PriceLevel {
     // Also known as Limit, Level or Bucket. Every PriceLevel stores a queue of Orders, tracks
@@ -12,7 +12,7 @@ class PriceLevel {
     // queue of orders with the same price 
     public:
         PriceLevel() = default;
-        PriceLevel(float price, std::queue<Order> fifo_order_container_by_price_level, int aggregateQuantity);
+        PriceLevel(float price);
         void addOrder(Order order);
         void removeOrder(Order order);
         bool checkEmptyPriceLevel();
@@ -21,4 +21,4 @@ class PriceLevel {
         float price;
         std::queue<Order> fifo_order_container_queue_by_price_level;
         int aggregateQuantity;
-}
+};
