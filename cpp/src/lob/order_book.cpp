@@ -43,3 +43,7 @@ OrderValidationError Order::validate() const noexcept {
 bool Order::isValid() const noexcept {
     return Order::validate() == OrderValidationError::NONE;
 }
+
+int Order::getOriginalQuantity() const {
+    return originalQuantity;
+}
