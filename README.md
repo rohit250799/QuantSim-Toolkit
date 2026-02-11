@@ -68,32 +68,33 @@ make help
 ### To run unit tests:
 make test
 
-### To clean the db (remove temporary artefacts)
+### To clean the db (remove temporary artefacts):
 make clean
 
-### To setup everything
+### To setup everything:
 make setup
 
-### To run data validation
+### To run data validation:
 make validate ARGS="--tickerName RELIANCE --startdate 2025-08-01 --enddate 2025-09-21"
 
-### To use the linter and perform mypy strict checking
+### To use the linter and perform mypy strict checking:
 make lint
 
-### Perform analysis
+### Perform analysis:
 make analyze ARGS="--ticker_element RELIANCE --start_date 2025-09-12 --end_date 2025-09-22"
 
-### To download data (may not work in workspaces, need your own API key to try out)
+### To download data (may not work in workspaces, need your own API key to try out):
 make download ARGS="--stockSymbol SBIN --startdate 2025-08-16 --enddate 2025-09-23" 
 
-### To run security check with Bandit
+### To run security check with Bandit:
 make securityCheck
 
-### If needed, you can perform hydration to insert seed data in your db, separately from the setup command. Use
+### If needed, you can perform hydration to insert seed data in your db, separately from the setup command. Use:
 make hydrate
 
-### To build or rebuild C++ for Market Microstructure Simulation, use command
+### To build or rebuild C++ for Market Microstructure Simulation, use command:
 make rebuildCleanCpp
+
 ---
 
 Trying out the features(all commands should be entered in the terminal from the root directory):
