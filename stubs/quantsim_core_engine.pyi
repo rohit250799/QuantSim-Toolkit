@@ -3,7 +3,7 @@ Core engine for Quantsim project - for Limit Order Book implementation
 """
 from __future__ import annotations
 import typing
-__all__: list[str] = ['ASK', 'BID', 'CANCELLED', 'FILLED', 'INVALID_PRICE', 'INVALID_QUANTITY', 'INVALID_SIDE', 'INVALID_STATE', 'NEW', 'NONE', 'OVERFILLED', 'Order', 'OrderSide', 'OrderState', 'OrderValidationError', 'PARTIALLY_FILLED', 'TIME_STAMP_IN_FUTURE']
+__all__: list[str] = ['ASK', 'BID', 'CANCELLED', 'FILLED', 'INVALID_PRICE', 'INVALID_QUANTITY', 'INVALID_SIDE', 'INVALID_STATE', 'NEW', 'NONE', 'OVERFILLED', 'Order', 'OrderSide', 'OrderState', 'OrderValidationError', 'PARTIALLY_FILLED', 'PriceLevel', 'TIME_STAMP_IN_FUTURE']
 class Order:
     def __init__(self, arg0: typing.SupportsInt, arg1: str, arg2: typing.SupportsInt, arg3: typing.SupportsInt, arg4: typing.SupportsFloat, arg5: OrderSide, arg6: str, arg7: typing.SupportsInt, arg8: typing.SupportsInt, arg9: OrderState) -> None:
         ...
@@ -148,6 +148,11 @@ class OrderValidationError:
         ...
     @property
     def value(self) -> int:
+        ...
+class PriceLevel:
+    def __init__(self, arg0: typing.SupportsFloat) -> None:
+        ...
+    def addOrder(self, arg0: Order) -> None:
         ...
 ASK: OrderSide  # value = <OrderSide.ASK: 1>
 BID: OrderSide  # value = <OrderSide.BID: 0>

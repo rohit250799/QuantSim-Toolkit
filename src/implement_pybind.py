@@ -1,4 +1,4 @@
-from quantsim_core_engine import Order, OrderSide, OrderState, OrderValidationError
+from quantsim_core_engine import Order, OrderSide, OrderState, OrderValidationError, PriceLevel
 
 r = Order(
     1,
@@ -31,3 +31,8 @@ if err != OrderValidationError.NONE:
     raise ValueError(f'Invalid error: {err}')
 
 print("No validation errors have been encountered!")
+
+test_price_level = PriceLevel(100)
+
+test_price_level.addOrder(r)
+test_price_level.addOrder(r1)
