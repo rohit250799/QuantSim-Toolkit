@@ -32,3 +32,30 @@ void PriceLevel::addOrder(Order order) {
     aggregateQuantity = aggregateQuantity + order.getOriginalQuantity();
 }
 
+float PriceLevel::getPrice() const {
+    return price;
+}
+
+int PriceLevel::getAggregateQuantity() {
+    return aggregateQuantity;
+}
+
+bool PriceLevel::checkEmptyPriceLevel() {
+    if (fifo_order_container_queue_by_price_level.size() < 1 or getAggregateQuantity() == 0) {
+        return true;
+    }
+    return false;
+}
+
+// Order* PriceLevel::getFrontOrder() {
+//     // returns the First order from the start of the queue
+//     if (!checkEmptyPriceLevel()) {
+//         return *fifo_order_container_queue_by_price_level.front();
+//     }
+//     std::cout << "The price level is empty. So, there is no order to be returned";
+//     return;
+// }
+
+void PriceLevel::removeOrder(Order order) {
+    // removes an order from the price level
+}
