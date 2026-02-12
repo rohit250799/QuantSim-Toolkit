@@ -62,7 +62,7 @@ cleanCppFailedBuilds:
 rebuildCleanCpp:
 	@echo "Rebuilding C++ cleanly from start..."
 	make cleanCppFailedBuilds
-	mkdir cpp/build
+	mkdir -p cpp/build
 	uv pip install .
 	@echo "Rebuild of C++ library complete..."
 	@echo "Running the stub generator..."
