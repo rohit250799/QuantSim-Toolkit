@@ -40,6 +40,9 @@ PYBIND11_MODULE(quantsim_core_engine, module_handle, py::mod_gil_not_used()) {
     
     py::class_<PriceLevel>(module_handle, "PriceLevel")
         .def(py::init<float>())
-        .def("addOrder", &PriceLevel::addOrder);
+        .def("addOrder", &PriceLevel::addOrder)
+        .def("getPrice", &PriceLevel::getPrice)
+        .def("getAggregateQuantity", &PriceLevel::getAggregateQuantity)
+        .def("checkEmptyPriceLevel", &PriceLevel::checkEmptyPriceLevel);
 }
 

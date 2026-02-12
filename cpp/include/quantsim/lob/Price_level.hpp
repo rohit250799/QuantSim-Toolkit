@@ -16,6 +16,14 @@ class PriceLevel {
         void addOrder(Order order);
         void removeOrder(Order order);
         bool checkEmptyPriceLevel();
+        int getAggregateQuantity();
+        float getPrice() const;
+        Order* getFrontOrder(); 
+        void removeFrontOrder();
+        int executeMatch(int quantity);
+        void removeOrder(int orderId);
+        bool containsOrder(int orderId);
+        int getOrderCount();
     
     private:
         float price;

@@ -938,7 +938,6 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "bandit" },
-    { name = "cmake" },
     { name = "debugpy" },
     { name = "matplotlib" },
     { name = "mypy" },
@@ -946,7 +945,6 @@ dependencies = [
     { name = "pandas" },
     { name = "pandas-stubs" },
     { name = "pybind11", extra = ["global"] },
-    { name = "pybind11-stubgen" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "pytest-xdist" },
@@ -954,6 +952,12 @@ dependencies = [
     { name = "requests" },
     { name = "setuptools" },
     { name = "types-requests" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "cmake" },
+    { name = "pybind11-stubgen" },
 ]
 
 [package.dev-dependencies]
@@ -964,7 +968,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "bandit", specifier = ">=1.9.2" },
-    { name = "cmake", specifier = ">=4.2.1" },
+    { name = "cmake", marker = "extra == 'dev'", specifier = ">=4.2.1" },
     { name = "debugpy", specifier = ">=1.8.17" },
     { name = "matplotlib", specifier = ">=3.10.6" },
     { name = "mypy", specifier = ">=1.18.2" },
@@ -972,7 +976,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=2.3.3" },
     { name = "pandas-stubs", specifier = ">=2.3.2.250926" },
     { name = "pybind11", extras = ["global"], specifier = ">=3.0.1" },
-    { name = "pybind11-stubgen", specifier = ">=2.5.5" },
+    { name = "pybind11-stubgen", marker = "extra == 'dev'", specifier = ">=2.5.5" },
     { name = "pytest", specifier = ">=8.4.2" },
     { name = "pytest-cov", specifier = ">=7.0.0" },
     { name = "pytest-xdist", specifier = ">=3.8.0" },
@@ -981,6 +985,7 @@ requires-dist = [
     { name = "setuptools", specifier = ">=80.9.0" },
     { name = "types-requests", specifier = ">=2.32.4.20250913" },
 ]
+provides-extras = ["dev"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=8.4.2" }]
