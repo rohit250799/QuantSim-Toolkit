@@ -63,7 +63,7 @@ rebuildCleanCpp:
 	@echo "Rebuilding C++ cleanly from start..."
 	make cleanCppFailedBuilds
 	mkdir -p cpp/build
-	uv pip install .
+	uv pip install -e ".[dev]"
 	@echo "Rebuild of C++ library complete..."
 	@echo "Running the stub generator..."
 	mkdir -p stubs
