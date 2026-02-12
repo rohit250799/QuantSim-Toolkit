@@ -67,5 +67,5 @@ rebuildCleanCpp:
 	@echo "Rebuild of C++ library complete..."
 	@echo "Running the stub generator..."
 	mkdir -p stubs
-	pybind11-stubgen quantsim_core_engine --output-dir stubs
+	uv run pybind11-stubgen quantsim_core_engine --output-dir stubs
 	@echo "Stubs have been generated..."
