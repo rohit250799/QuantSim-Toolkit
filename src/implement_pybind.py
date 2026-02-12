@@ -36,3 +36,5 @@ test_price_level = PriceLevel(100)
 
 test_price_level.addOrder(r)
 test_price_level.addOrder(r1)
+
+print(test_price_level.checkEmptyPriceLevel())
